@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gaussian Wavepacket — Physics 130A</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f0f2f5;
+  color: #222;
+  padding: 16px;
+}
+
+h1 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 0.83rem;
+  color: #666;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+#main-grid {
+  display: grid;
+  grid-template-columns: 58% 42%;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: start;
+}
+
+#left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plot-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09);
+  overflow: hidden;
+}
+
+#controls {
+  background: white;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+}
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.ctrl-row label {
+  font-size: 0.87rem;
+  white-space: nowrap;
+  min-width: 105px;
+  color: #444;
+}
+
+input[type=range] {
+  flex: 1;
+  accent-color: #4361ee;
+  cursor: pointer;
+}
+
+.vd {
+  font-size: 0.82rem;
+  color: #555;
+  min-width: 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+button {
+  padding: 6px 15px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.87rem;
+  cursor: pointer;
+  transition: background 0.12s;
+  font-family: inherit;
+}
+
+#btn-add { background: #4361ee; color: white; }
+#btn-add:hover:not(:disabled) { background: #3551d4; }
+#btn-add:disabled { background: #adb5bd; cursor: default; }
+
+#btn-reset { background: #e9ecef; color: #333; }
+#btn-reset:hover { background: #dee2e6; }
+
+#btn-play { background: #2ecc71; color: white; min-width: 82px; }
+#btn-play:hover { background: #27ae60; }
+
+#status {
+  width: 100%;
+  font-size: 0.81rem;
+  color: #666;
+  padding-top: 8px;
+  border-top: 1px solid #f0f2f5;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+}
+
+@media (max-width: 680px) {
+  #main-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<h1>Gaussian Wavepacket</h1>
+<p class="subtitle">
+  ψ(x, t) = &Sigma;<sub>n</sub> A<sub>n</sub> e<sup>i(k<sub>n</sub>x &minus; &omega;<sub>n</sub>t)</sup> / &Sigma;|A<sub>n</sub>|
+  &emsp;&emsp;
+  A<sub>n</sub> = e<sup>&minus;(k<sub>n</sub>&minus;k<sub>0</sub>)<sup>2</sup>/4&sigma;<sup>2</sup></sup>
+  &emsp;&emsp;
+  &omega;(k) = k<sup>2</sup>/2 &nbsp;(free particle, &hbar;=1, 2m=1)
+  &emsp;&emsp;
+  k<sub>0</sub> = 5
+</p>
+
+<div id="main-grid">
+  <div id="left-col">
+    <div class="plot-card" id="plot-psi"></div>
+  </div>
+  <div id="right-col">
+    <div class="plot-card" id="plot-k"></div>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="ctrl-row">
+    <label>&sigma;<sub>k</sub> (k-space width)</label>
+    <input type="range" id="sl-sigma" min="0.2" max="2.5" step="0.05" value="0.5">
+    <span class="vd" id="vd-sigma">0.50</span>
+  </div>
+  <div class="ctrl-row">
+    <label>Time t</label>
+    <input type="range" id="sl-t" min="0" max="6" step="0.02" value="0">
+    <span class="vd" id="vd-t">0.00</span>
+  </div>
+  <div class="btn-row">
+    <button id="btn-add">Add Wave</button>
+    <button id="btn-reset">Reset</button>
+    <button id="btn-play">&#9654; Play</button>
+  </div>
+  <div id="status">N = 1 wave  |  &sigma; = 0.50  |  t = 0.00</div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+const K0         = 5.0;
+const N_MAX      = 10;
+const N_X        = 512;
+const X_MIN      = -3.0;
+const X_MAX      = 18.0;
+const T_MAX      = 6.0;
+const ANIM_SPEED = 1.0;   // physics-time units per real second
+const K_ENV_PTS  = 400;
+
+// Precomputed x grid — same every frame
+const xGrid = Array.from({length: N_X},
+  (_, i) => X_MIN + (X_MAX - X_MIN) * i / (N_X - 1));
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let sigma   = 0.5;
+let t       = 0.0;
+let nWaves  = 1;
+let playing = false;
+let animFrame = null;
+let lastTs    = null;
+
+// ─── Physics ─────────────────────────────────────────────────────────────────
+
+// k0, k0+σ, k0−σ, k0+2σ, k0−2σ, ...  (spacing = σ so weights are exp(-n²/4))
+function kSeq(n) {
+  const ks = [K0];
+  for (let i = 1; i < n; i++) {
+    const mult = Math.floor((i + 1) / 2);
+    const sign = (i % 2 === 1) ? 1 : -1;
+    ks.push(K0 + sign * mult * sigma);
+  }
+  return ks;
+}
+
+// Gaussian amplitudes A_n = exp(-(k_n - k0)² / 4σ²)
+function gaussWeights(ks) {
+  const inv = 1.0 / (4.0 * sigma * sigma);
+  return ks.map(k => Math.exp(-((k - K0) * (k - K0)) * inv));
+}
+
+// Re[ψ] and |ψ| over xGrid using free-particle dispersion ω = k²/2
+function wavefunction(ks, ws, time) {
+  const norm = ws.reduce((a, b) => a + b, 0.0);
+  const invN = 1.0 / norm;
+  const omega = ks.map(k => k * k * 0.5);
+  const n = ks.length;
+  const re  = new Array(N_X);
+  const abs = new Array(N_X);
+  for (let j = 0; j < N_X; j++) {
+    let sr = 0.0, si = 0.0;
+    const x = xGrid[j];
+    for (let i = 0; i < n; i++) {
+      const ph = ks[i] * x - omega[i] * time;
+      sr += ws[i] * Math.cos(ph);
+      si += ws[i] * Math.sin(ph);
+    }
+    re[j]  = sr * invN;
+    abs[j] = Math.sqrt(sr * sr + si * si) * invN;
+  }
+  return {re, abs};
+}
+
+// Vertical spike traces: [k, k, null] pattern draws lines from 0 → A_n
+function spikeTraces(ks, ws) {
+  const maxW = Math.max(...ws);
+  const nw   = ws.map(w => w / maxW);
+  return {
+    x: ks.flatMap(k => [k, k, null]),
+    y: nw.flatMap(w => [0, w, null]),
+  };
+}
+
+// Continuous Gaussian envelope for φ(k) background curve
+function envCurve(kMin, kMax) {
+  const inv  = 1.0 / (4.0 * sigma * sigma);
+  const kArr = new Array(K_ENV_PTS);
+  const env  = new Array(K_ENV_PTS);
+  for (let i = 0; i < K_ENV_PTS; i++) {
+    const k = kMin + (kMax - kMin) * i / (K_ENV_PTS - 1);
+    kArr[i] = k;
+    env[i]  = Math.exp(-((k - K0) * (k - K0)) * inv);
+  }
+  return {kArr, env};
+}
+
+// Dynamic k-axis range: wide enough to show all spikes + envelope tails
+function kAxisRange() {
+  const maxOff = Math.floor((nWaves + 1) / 2) * sigma;
+  const half   = Math.max(2.5 * sigma, maxOff + 0.5 * sigma);
+  return [K0 - half, K0 + half];
+}
+
+// ─── Plotly layouts ──────────────────────────────────────────────────────────
+const PAD  = {l: 54, r: 14, t: 38, b: 42};
+const GRID = {showgrid: true, gridcolor: '#eeeeee'};
+
+function lyPsi() {
+  return {
+    title: {text: '\u03c8(x, t) \u2014 Re[\u03c8] with |\u03c8| envelope', font: {size: 13}, x: 0.5},
+    xaxis: {title: 'x', range: [X_MIN, X_MAX], fixedrange: true, ...GRID},
+    yaxis: {range: [-1.25, 1.25], fixedrange: true,
+            zeroline: true, zerolinecolor: '#dddddd', ...GRID},
+    margin: PAD, height: 474,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+    showlegend: true,
+    legend: {x: 0.75, y: 0.97, font: {size: 10},
+             bgcolor: 'rgba(255,255,255,0.85)', borderwidth: 0},
+  };
+}
+
+function lyK(kr) {
+  return {
+    title: {text: '\u03c6(k) \u2014 Fourier components', font: {size: 13}, x: 0.5},
+    xaxis: {title: 'k', range: kr, fixedrange: true, ...GRID},
+    yaxis: {title: 'A(k) / max A', range: [0, 1.15], fixedrange: true, ...GRID},
+    margin: {l: 62, r: 14, t: 38, b: 42},
+    height: 474,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+    showlegend: true,
+    legend: {x: 0.52, y: 0.97, font: {size: 10},
+             bgcolor: 'rgba(255,255,255,0.85)', borderwidth: 0},
+    shapes: [{
+      type: 'line', x0: K0, x1: K0, y0: 0, y1: 1.15,
+      line: {color: '#cccccc', width: 1, dash: 'dot'},
+    }],
+  };
+}
+
+const CFG = {responsive: false, displayModeBar: false};
+
+// ─── Build all trace data from current state ──────────────────────────────────
+function makeTraces() {
+  const ks = kSeq(nWaves);
+  const ws = gaussWeights(ks);
+  const {re, abs}   = wavefunction(ks, ws, t);
+  const kr          = kAxisRange();
+  const {x: sx, y: sy} = spikeTraces(ks, ws);
+  const {kArr, env}    = envCurve(kr[0], kr[1]);
+  return {re, abs, sx, sy, kArr, env, kr};
+}
+
+// ─── Initialize ───────────────────────────────────────────────────────────────
+function initPlots() {
+  const {re, abs, sx, sy, kArr, env, kr} = makeTraces();
+
+  Plotly.newPlot('plot-psi', [
+    {x: xGrid, y: re,              type: 'scatter', mode: 'lines',
+     name: 'Re[\u03c8]',           line: {color: '#4361ee', width: 2}},
+    {x: xGrid, y: abs,             type: 'scatter', mode: 'lines',
+     name: '|\u03c8|',             line: {color: '#e63946', width: 1.5, dash: 'dash'}},
+    {x: xGrid, y: abs.map(v => -v), type: 'scatter', mode: 'lines',
+     name: '-|\u03c8|',            line: {color: '#e63946', width: 1.5, dash: 'dash'},
+     showlegend: false},
+  ], lyPsi(), CFG);
+
+  Plotly.newPlot('plot-k', [
+    {x: sx,   y: sy,  type: 'scatter', mode: 'lines',
+     name: 'plane waves',       line: {color: '#4361ee', width: 3}},
+    {x: kArr, y: env, type: 'scatter', mode: 'lines',
+     name: 'Gaussian envelope', line: {color: '#999999', width: 1.5, dash: 'dash'}},
+  ], lyK(kr), CFG);
+}
+
+// ─── Update (called on every interaction) ────────────────────────────────────
+function updatePlots() {
+  const {re, abs, sx, sy, kArr, env, kr} = makeTraces();
+
+  Plotly.react('plot-psi', [
+    {x: xGrid, y: re,              type: 'scatter', mode: 'lines',
+     name: 'Re[\u03c8]',           line: {color: '#4361ee', width: 2}},
+    {x: xGrid, y: abs,             type: 'scatter', mode: 'lines',
+     name: '|\u03c8|',             line: {color: '#e63946', width: 1.5, dash: 'dash'}},
+    {x: xGrid, y: abs.map(v => -v), type: 'scatter', mode: 'lines',
+     name: '-|\u03c8|',            line: {color: '#e63946', width: 1.5, dash: 'dash'},
+     showlegend: false},
+  ], lyPsi());
+
+  Plotly.react('plot-k', [
+    {x: sx,   y: sy,  type: 'scatter', mode: 'lines',
+     name: 'plane waves',       line: {color: '#4361ee', width: 3}},
+    {x: kArr, y: env, type: 'scatter', mode: 'lines',
+     name: 'Gaussian envelope', line: {color: '#999999', width: 1.5, dash: 'dash'}},
+  ], lyK(kr));
+
+  document.getElementById('vd-sigma').textContent = sigma.toFixed(2);
+  document.getElementById('vd-t').textContent     = t.toFixed(2);
+  document.getElementById('status').textContent   =
+    `N = ${nWaves} wave${nWaves > 1 ? 's' : ''}` +
+    `  |  \u03c3\u2096 = ${sigma.toFixed(2)}` +
+    `  |  t = ${t.toFixed(2)}` +
+    `  |  packet center \u2248 x = ${(K0 * t).toFixed(1)}  (v\u1d4d = k\u2080 = ${K0})`;
+}
+
+// ─── Animation ────────────────────────────────────────────────────────────────
+function tick(ts) {
+  if (!playing) return;
+  if (lastTs === null) lastTs = ts;
+  const dt = Math.min((ts - lastTs) / 1000.0 * ANIM_SPEED, 0.08);
+  lastTs = ts;
+  t = Math.min(t + dt, T_MAX);
+  document.getElementById('sl-t').value = t;
+  updatePlots();
+  if (t < T_MAX) {
+    animFrame = requestAnimationFrame(tick);
+  } else {
+    playing = false;
+    lastTs  = null;
+    document.getElementById('btn-play').textContent = '\u25b6 Play';
+  }
+}
+
+// ─── Event listeners ─────────────────────────────────────────────────────────
+document.getElementById('sl-sigma').addEventListener('input', e => {
+  sigma = parseFloat(e.target.value);
+  updatePlots();
+});
+
+document.getElementById('sl-t').addEventListener('input', e => {
+  if (playing) {
+    playing = false;
+    lastTs  = null;
+    cancelAnimationFrame(animFrame);
+    document.getElementById('btn-play').textContent = '\u25b6 Play';
+  }
+  t = parseFloat(e.target.value);
+  updatePlots();
+});
+
+document.getElementById('btn-add').addEventListener('click', () => {
+  if (nWaves >= N_MAX) return;
+  nWaves++;
+  if (nWaves >= N_MAX) {
+    const b = document.getElementById('btn-add');
+    b.textContent = 'Max waves';
+    b.disabled    = true;
+  }
+  updatePlots();
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (playing) { playing = false; lastTs = null; cancelAnimationFrame(animFrame); }
+  nWaves = 1;
+  t      = 0.0;
+  document.getElementById('sl-t').value = 0;
+  const ba = document.getElementById('btn-add');
+  ba.disabled    = false;
+  ba.textContent = 'Add Wave';
+  document.getElementById('btn-play').textContent = '\u25b6 Play';
+  updatePlots();
+});
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (playing) {
+    playing = false;
+    lastTs  = null;
+    cancelAnimationFrame(animFrame);
+    document.getElementById('btn-play').textContent = '\u25b6 Play';
+  } else {
+    if (t >= T_MAX) {
+      t = 0.0;
+      document.getElementById('sl-t').value = 0;
+    }
+    playing = true;
+    lastTs  = null;
+    document.getElementById('btn-play').textContent = '\u23f8 Pause';
+    animFrame = requestAnimationFrame(tick);
+  }
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+initPlots();
+</script>
+</body>
+</html>
