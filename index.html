@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Physics 130A Demos</title>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --ink: #222222;
+      --ink-strong: #1a1a2e;
+      --muted: #666666;
+      --accent: #4361ee;
+      --accent-hover: #3551d4;
+      --line: #e4e8ee;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+    }
+
+    .page {
+      width: min(1160px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 22px 0 56px;
+    }
+
+    .hero {
+      margin-bottom: 18px;
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 8px;
+      color: var(--accent);
+      font-size: 0.77rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-weight: 600;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.8rem, 4vw, 2.5rem);
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      color: var(--ink-strong);
+      font-weight: 600;
+    }
+
+    .hero p {
+      max-width: 60ch;
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .preview-frame {
+      position: relative;
+      aspect-ratio: 16 / 8.2;
+      overflow: hidden;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+    }
+
+    .preview-frame iframe {
+      width: 170%;
+      height: 170%;
+      border: 0;
+      transform: scale(0.588);
+      transform-origin: top left;
+      pointer-events: none;
+    }
+
+    .preview-frame::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0) 58%, rgba(240, 242, 245, 0.12) 100%);
+      pointer-events: none;
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      line-height: 1.15;
+      color: var(--ink-strong);
+      font-weight: 600;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 0.9rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 15px;
+      border-radius: 6px;
+      color: white;
+      background: var(--accent);
+      text-decoration: none;
+      font-size: 0.87rem;
+      transition: background 0.12s;
+    }
+
+    .button:hover {
+      background: var(--accent-hover);
+    }
+
+    .path {
+      color: var(--muted);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 700px) {
+      .page {
+        width: min(100% - 20px, 1120px);
+        padding-top: 14px;
+      }
+
+      .hero {
+        padding: 18px 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <span class="eyebrow">Physics 130A</span>
+      <h1>Quantum Mechanics Demos</h1>
+      <p>
+        Small interactive demos for class. Each card gives a quick visual snapshot of the page and links to the full demo.
+      </p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <div class="preview-frame">
+          <iframe
+            src="./gaussian_wavepacket/index.html"
+            title="Preview of Gaussian Wavepacket demo"
+            loading="lazy"
+          ></iframe>
+        </div>
+        <div>
+          <h2>Gaussian Wavepacket</h2>
+          <p>
+            Interactive free-particle wavepacket visualization showing the real-space packet and its distribution in k-space.
+          </p>
+        </div>
+        <div class="actions">
+          <a class="button" href="./gaussian_wavepacket/index.html">Open demo</a>
+          <span class="path">/gaussian_wavepacket/</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="preview-frame">
+          <iframe
+            src="./finite_square_well/index.html"
+            title="Preview of Finite Square Well demo"
+            loading="lazy"
+          ></iframe>
+        </div>
+        <div>
+          <h2>Finite Square Well</h2>
+          <p>
+            Interactive bound-state explorer for a finite square well, with the potential profile and graphical solution conditions shown side by side.
+          </p>
+        </div>
+        <div class="actions">
+          <a class="button" href="./finite_square_well/index.html">Open demo</a>
+          <span class="path">/finite_square_well/</span>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
