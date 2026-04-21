@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finite Square Well — Physics 130A</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f0f2f5;
+  color: #222;
+  padding: 16px;
+}
+
+h1 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 0.83rem;
+  color: #666;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+#main-grid {
+  display: grid;
+  grid-template-columns: 58% 42%;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: start;
+}
+
+#left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plot-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09);
+  overflow: hidden;
+}
+
+#controls {
+  background: white;
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+}
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 220px;
+}
+
+.ctrl-row label {
+  font-size: 0.87rem;
+  white-space: nowrap;
+  min-width: 120px;
+  color: #444;
+}
+
+input[type=range] {
+  flex: 1;
+  accent-color: #4361ee;
+  cursor: pointer;
+}
+
+.vd {
+  font-size: 0.82rem;
+  color: #555;
+  min-width: 58px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+}
+
+#status {
+  width: 100%;
+  font-size: 0.81rem;
+  color: #666;
+  padding-top: 8px;
+  border-top: 1px solid #f0f2f5;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+}
+
+@media (max-width: 680px) {
+  #main-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<h1>Finite Square Well — Bound States</h1>
+<p class="subtitle">
+  V(x) = &minus;V<sub>0</sub> for |x| &lt; a,&ensp;V(x) = 0 outside.&emsp;
+  Bound states: &minus;V<sub>0</sub> &lt; E &lt; 0.&emsp;
+  Even: u&thinsp;tan u = &radic;(z<sub>0</sub><sup>2</sup>&minus;u<sup>2</sup>)&emsp;
+  Odd: &minus;u&thinsp;cot u = &radic;(z<sub>0</sub><sup>2</sup>&minus;u<sup>2</sup>)&emsp;
+  z<sub>0</sub> = a&radic;(V<sub>0</sub>/(&hbar;<sup>2</sup>/2m))
+</p>
+
+<div id="main-grid">
+  <div id="left-col">
+    <div class="plot-card" id="plot-well"></div>
+  </div>
+  <div id="right-col">
+    <div class="plot-card" id="plot-graphical"></div>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="ctrl-row">
+    <label>V<sub>0</sub> (well depth)</label>
+    <input type="range" id="sl-V0" min="1" max="200" step="1" value="50">
+    <span class="vd" id="vd-V0">50 eV</span>
+  </div>
+  <div class="ctrl-row">
+    <label>a (half-width)</label>
+    <input type="range" id="sl-a" min="0.2" max="5.0" step="0.05" value="1.5">
+    <span class="vd" id="vd-a">1.50 Å</span>
+  </div>
+  <div id="status">Loading…</div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const HBAR2_OVER_2M = 3.81;   // eV·Å²  (ħ²/2mₑ)
+const N_X     = 600;
+const X_EXTRA = 2.5;          // Å of vacuum shown beyond well edge
+const COLORS  = ['#4361ee','#e63946','#2ecc71','#f4a261',
+                 '#9b5de5','#00b4d8','#fb5607','#06d6a0'];
+const EPS     = 1e-7;         // nudge away from tan/cot singularities
+const CFG     = {responsive: false, displayModeBar: false};
+const GRID    = {showgrid: true, gridcolor: '#eeeeee'};
+const PAD     = {l: 58, r: 14, t: 38, b: 42};
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let V0 = 50.0;
+let a  = 1.5;
+
+// ─── Physics ──────────────────────────────────────────────────────────────────
+
+function computeZ0(V0, a) {
+  return a * Math.sqrt(V0 / HBAR2_OVER_2M);
+}
+
+// Bisect f on [lo, hi]; assumes sign change exists. Returns root or null.
+function bisect(f, lo, hi, tol = 1e-10, maxIter = 80) {
+  let flo = f(lo), fhi = f(hi);
+  if (flo * fhi > 0) return null;
+  for (let i = 0; i < maxIter; i++) {
+    const mid = 0.5 * (lo + hi);
+    if (hi - lo < tol) return mid;
+    const fm = f(mid);
+    if (flo * fm <= 0) { hi = mid; fhi = fm; }
+    else               { lo = mid; flo = fm; }
+  }
+  return 0.5 * (lo + hi);
+}
+
+// Returns array of {E, parity} sorted by E ascending (most-bound first).
+function findBoundStates(V0, a) {
+  const z0  = computeZ0(V0, a);
+  const z02 = z0 * z0;
+  const states = [];
+  const PI  = Math.PI;
+
+  // Walk through alternating even/odd windows (each of width π/2)
+  // window index n: even windows at n even (n·π/2, n·π/2 + π/2) for even solutions
+  // Sorted naturally: n=0 even, n=1 odd, n=2 even, …
+  let n = 0;
+  while (true) {
+    const uLo = n * (PI / 2) + EPS;
+    const uHi = (n + 1) * (PI / 2) - EPS;
+    if (uLo >= z0) break;
+    const uHiClamped = Math.min(uHi, z0 - EPS);
+    if (uHiClamped <= uLo) { n++; continue; }
+
+    const isEven = (n % 2 === 0);
+    const rhs = u => Math.sqrt(Math.max(z02 - u * u, 0));
+
+    let root = null;
+    if (isEven) {
+      // f(u) = u·tan(u) − rhs(u)
+      root = bisect(u => u * Math.tan(u) - rhs(u), uLo, uHiClamped);
+    } else {
+      // g(u) = −u·cot(u) − rhs(u)
+      root = bisect(u => -u / Math.tan(u) - rhs(u), uLo, uHiClamped);
+    }
+
+    if (root !== null) {
+      const E = (root / a) * (root / a) * HBAR2_OVER_2M - V0;
+      states.push({ E, parity: isEven ? 'even' : 'odd', u: root });
+    }
+    n++;
+  }
+  // Sort by energy ascending (ground state first = most negative)
+  states.sort((a, b) => a.E - b.E);
+  return states;
+}
+
+// Returns normalized ψ on xArr for state with given E and parity.
+function computeWavefunction(E, parity, V0, a, xArr) {
+  const k     = Math.sqrt(Math.max((E + V0) / HBAR2_OVER_2M, 0));
+  const kappa = Math.sqrt(Math.max(-E / HBAR2_OVER_2M, 0));
+  const n     = xArr.length;
+  const psi   = new Float64Array(n);
+
+  for (let i = 0; i < n; i++) {
+    const x  = xArr[i];
+    const ax = Math.abs(x);
+    if (ax <= a) {
+      psi[i] = parity === 'even' ? Math.cos(k * x) : Math.sin(k * x);
+    } else {
+      const decay = Math.exp(-kappa * (ax - a));
+      if (parity === 'even') {
+        psi[i] = Math.cos(k * a) * decay;
+      } else {
+        psi[i] = Math.sign(x) * Math.sin(k * a) * decay;
+      }
+    }
+  }
+
+  // Trapezoidal normalization
+  const dx = xArr[1] - xArr[0];
+  let norm2 = 0;
+  for (let i = 0; i < n; i++) {
+    const w = (i === 0 || i === n - 1) ? 0.5 : 1.0;
+    norm2 += w * psi[i] * psi[i];
+  }
+  norm2 *= dx;
+  const inv = 1.0 / Math.sqrt(norm2);
+  for (let i = 0; i < n; i++) psi[i] *= inv;
+  return psi;
+}
+
+// ─── Trace builders ───────────────────────────────────────────────────────────
+
+function makeWellTraces(states, xArr, V0, a) {
+  const traces = [];
+
+  // Potential outline V(x)
+  const xWell = [xArr[0], -a, -a, a, a, xArr[xArr.length - 1]];
+  const yWell = [0,        0, -V0, -V0, 0, 0];
+  traces.push({
+    x: xWell, y: yWell,
+    type: 'scatter', mode: 'lines',
+    name: 'V(x)',
+    line: {color: '#222', width: 2},
+    showlegend: true,
+  });
+
+  // Precompute all wavefunctions so we can determine per-state amplitude scale
+  const psis = states.map(st => computeWavefunction(st.E, st.parity, V0, a, xArr));
+
+  states.forEach((st, idx) => {
+    const col = COLORS[idx % COLORS.length];
+    const psi = psis[idx];
+
+    // Scale so max |ψ| fills 40% of the gap to nearest neighbour / boundary
+    const eAbove = idx < states.length - 1 ? states[idx + 1].E : 0;
+    const eBelow = idx > 0                 ? states[idx - 1].E : -V0;
+    const gap    = Math.min(eAbove - st.E, st.E - eBelow);
+    const maxAbs = Math.max(...Array.from(psi).map(Math.abs)) || 1;
+    const scale  = (0.40 * gap) / maxAbs;
+
+    // ψ(x) riding on its energy baseline
+    traces.push({
+      x: Array.from(xArr),
+      y: Array.from(psi).map(v => st.E + scale * v),
+      type: 'scatter', mode: 'lines',
+      name: `ψ${idx + 1} (${st.parity}), E = ${st.E.toFixed(2)} eV`,
+      line: {color: col, width: 2},
+    });
+
+    // Thin baseline at E_n so the zero of each ψ is visible
+    traces.push({
+      x: [xArr[0], xArr[xArr.length - 1]],
+      y: [st.E, st.E],
+      type: 'scatter', mode: 'lines',
+      line: {color: col, width: 1, dash: 'dot'},
+      showlegend: false,
+    });
+  });
+
+  return traces;
+}
+
+function makeGraphicalTraces(V0, a, states) {
+  const z0  = computeZ0(V0, a);
+  const z02 = z0 * z0;
+  const PI  = Math.PI;
+  const PTS = 300;
+  const traces = [];
+
+  // Quarter circle
+  const circU = [], circV = [];
+  for (let i = 0; i <= PTS; i++) {
+    const u = z0 * i / PTS;
+    circU.push(u);
+    circV.push(Math.sqrt(z02 - u * u));
+  }
+  traces.push({
+    x: circU, y: circV,
+    type: 'scatter', mode: 'lines',
+    name: 'z₀ circle',
+    line: {color: '#888', width: 2},
+  });
+
+  // Even / odd curves — walk same windows as findBoundStates
+  let n = 0;
+  while (true) {
+    const uLo = n * (PI / 2) + EPS;
+    if (uLo >= z0) break;
+    const uHiClamped = Math.min((n + 1) * (PI / 2) - EPS, z0 - EPS);
+    if (uHiClamped <= uLo) { n++; continue; }
+
+    const isEven = (n % 2 === 0);
+    const uArr = [], vArr = [];
+    for (let i = 0; i <= PTS; i++) {
+      const u = uLo + (uHiClamped - uLo) * i / PTS;
+      const v = isEven ? u * Math.tan(u) : -u / Math.tan(u);
+      if (v >= 0 && v <= z0 * 1.05) {
+        uArr.push(u);
+        vArr.push(v);
+      } else {
+        uArr.push(null);
+        vArr.push(null);
+      }
+    }
+    traces.push({
+      x: uArr, y: vArr,
+      type: 'scatter', mode: 'lines',
+      name: isEven ? 'u·tan u (even)' : '−u·cot u (odd)',
+      line: {color: isEven ? '#4361ee' : '#e63946', width: 1.8},
+      showlegend: n < 2,  // deduplicate legend entries
+    });
+    n++;
+  }
+
+  // Intersection dots
+  if (states.length > 0) {
+    const dotU = states.map(st => st.u);
+    const dotV = states.map(st => Math.sqrt(Math.max(z02 - st.u * st.u, 0)));
+    const dotColors = states.map((_, i) => COLORS[i % COLORS.length]);
+    traces.push({
+      x: dotU, y: dotV,
+      type: 'scatter', mode: 'markers',
+      name: 'bound states',
+      marker: {color: dotColors, size: 9, line: {color: '#fff', width: 1.5}},
+    });
+  }
+
+  return traces;
+}
+
+// ─── Layouts ──────────────────────────────────────────────────────────────────
+
+function lyWell(V0) {
+  return {
+    title: {text: 'Potential V(x) with bound-state wavefunctions ψₙ(x)', font: {size: 13}, x: 0.5},
+    xaxis: {title: 'x (Å)', fixedrange: true, ...GRID},
+    yaxis: {title: 'Energy (eV)', fixedrange: true, zeroline: true,
+            zerolinecolor: '#bbb', ...GRID},
+    margin: PAD, height: 600,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+    showlegend: true,
+    legend: {x: 1.01, y: 1, xanchor: 'left', font: {size: 10},
+             bgcolor: 'rgba(255,255,255,0.85)'},
+  };
+}
+
+function lyGraphical(z0) {
+  const lim = z0 * 1.08 + 0.3;
+  return {
+    title: {text: 'Graphical solution (u = ka, v = κa)', font: {size: 13}, x: 0.5},
+    xaxis: {title: 'u = ka', range: [0, lim], fixedrange: true, ...GRID},
+    yaxis: {title: 'v = κa', range: [0, lim], fixedrange: true,
+            scaleanchor: 'x', scaleratio: 1, ...GRID},
+    margin: {...PAD, r: 14, t: 38},
+    height: 600,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+    showlegend: true,
+    legend: {x: 0.62, y: 0.97, font: {size: 10},
+             bgcolor: 'rgba(255,255,255,0.85)'},
+  };
+}
+
+// ─── Core update ─────────────────────────────────────────────────────────────
+
+function buildXArr(a) {
+  const xMin = -(a + X_EXTRA), xMax = a + X_EXTRA;
+  return Array.from({length: N_X}, (_, i) => xMin + (xMax - xMin) * i / (N_X - 1));
+}
+
+function updatePlots() {
+  const xArr   = buildXArr(a);
+  const states = findBoundStates(V0, a);
+  const z0     = computeZ0(V0, a);
+
+  Plotly.react('plot-well',      makeWellTraces(states, xArr, V0, a),      lyWell(V0));
+  Plotly.react('plot-graphical', makeGraphicalTraces(V0, a, states),       lyGraphical(z0));
+
+  document.getElementById('vd-V0').textContent = `${V0} eV`;
+  document.getElementById('vd-a').textContent  = `${a.toFixed(2)} Å`;
+
+  const eStr = states.length
+    ? states.map((s, i) => `E${i + 1} = ${s.E.toFixed(2)} eV`).join('  ')
+    : 'no bound states';
+  document.getElementById('status').textContent =
+    `V₀ = ${V0} eV  |  a = ${a.toFixed(2)} Å  |  z₀ = ${z0.toFixed(3)}  |  ` +
+    `${states.length} bound state${states.length !== 1 ? 's' : ''}  |  ${eStr}`;
+}
+
+function initPlots() {
+  const xArr   = buildXArr(a);
+  const states = findBoundStates(V0, a);
+  const z0     = computeZ0(V0, a);
+
+  Plotly.newPlot('plot-well',      makeWellTraces(states, xArr, V0, a),      lyWell(V0),      CFG);
+  Plotly.newPlot('plot-graphical', makeGraphicalTraces(V0, a, states),       lyGraphical(z0), CFG);
+
+  document.getElementById('vd-V0').textContent = `${V0} eV`;
+  document.getElementById('vd-a').textContent  = `${a.toFixed(2)} Å`;
+
+  const eStr = states.map((s, i) => `E${i + 1} = ${s.E.toFixed(2)} eV`).join('  ');
+  document.getElementById('status').textContent =
+    `V₀ = ${V0} eV  |  a = ${a.toFixed(2)} Å  |  z₀ = ${z0.toFixed(3)}  |  ` +
+    `${states.length} bound state${states.length !== 1 ? 's' : ''}  |  ${eStr}`;
+}
+
+// ─── Event listeners ─────────────────────────────────────────────────────────
+
+document.getElementById('sl-V0').addEventListener('input', e => {
+  V0 = parseFloat(e.target.value);
+  updatePlots();
+});
+
+document.getElementById('sl-a').addEventListener('input', e => {
+  a = parseFloat(e.target.value);
+  updatePlots();
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+initPlots();
+</script>
+</body>
+</html>
