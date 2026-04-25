@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finite Square Bump — Scattering — Physics 130A</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f0f2f5; color: #222; padding: 16px;
+}
+h1 { font-size: 1.35rem; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+.subtitle { font-size: 0.83rem; color: #666; margin-bottom: 12px; line-height: 1.6; }
+#main-grid {
+  display: grid; grid-template-columns: 60% 40%;
+  gap: 10px; margin-bottom: 10px; align-items: start;
+}
+.plot-card {
+  background: white; border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09); overflow: hidden;
+}
+#controls {
+  background: white; border-radius: 8px; padding: 12px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09);
+  display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center;
+}
+.ctrl-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px; }
+.ctrl-row label { font-size: 0.87rem; white-space: nowrap; min-width: 120px; color: #444; }
+input[type=range] { flex: 1; accent-color: #4361ee; cursor: pointer; }
+.vd {
+  font-size: 0.82rem; color: #555; min-width: 58px; text-align: right;
+  font-variant-numeric: tabular-nums; font-family: 'SF Mono','Cascadia Code',monospace;
+}
+#status {
+  width: 100%; font-size: 0.81rem; color: #666; padding-top: 8px;
+  border-top: 1px solid #f0f2f5; font-family: 'SF Mono','Cascadia Code',monospace;
+}
+@media (max-width: 680px) { #main-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Finite Square Bump — Scattering</h1>
+<p class="subtitle">
+  V(x) = +V<sub>0</sub> for |x| &lt; a,&ensp;V = 0 outside.&emsp;
+  Incident from left: ψ<sub>I</sub> = e<sup>ikx</sup> + r e<sup>&minus;ikx</sup>,&ensp;
+  ψ<sub>III</sub> = t e<sup>ikx</sup>.&emsp;
+  k = &radic;(E/(&hbar;<sup>2</sup>/2m)).&emsp;
+  E &lt; V<sub>0</sub>: tunneling (κ = &radic;((V<sub>0</sub>&minus;E)/(&hbar;<sup>2</sup>/2m))).&emsp;
+  E &gt; V<sub>0</sub>: above-barrier (q = &radic;((E&minus;V<sub>0</sub>)/(&hbar;<sup>2</sup>/2m))).
+</p>
+
+<div id="main-grid">
+  <div id="left-col">
+    <div class="plot-card" id="plot-wave"></div>
+  </div>
+  <div id="right-col">
+    <div class="plot-card" id="plot-tr"></div>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="ctrl-row">
+    <label>V<sub>0</sub> (barrier height)</label>
+    <input type="range" id="sl-V0" min="1" max="200" step="1" value="30">
+    <span class="vd" id="vd-V0">30 eV</span>
+  </div>
+  <div class="ctrl-row">
+    <label>a (half-width)</label>
+    <input type="range" id="sl-a" min="0.2" max="5.0" step="0.05" value="1.5">
+    <span class="vd" id="vd-a">1.50 Å</span>
+  </div>
+  <div class="ctrl-row">
+    <label>E (incident energy)</label>
+    <input type="range" id="sl-E" min="0.5" max="200" step="0.5" value="15">
+    <span class="vd" id="vd-E">15.0 eV</span>
+  </div>
+  <div id="status">Loading…</div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const HBAR2_OVER_2M = 3.81;   // eV·Å²  (ħ²/2mₑ)
+const N_X     = 500;
+const N_TR    = 400;
+const X_EXTRA = 10.0;          // Å beyond bump edge on each side
+const E_TR_MAX = 200.0;        // eV, range of T/R curve
+const CFG  = {responsive: false, displayModeBar: false};
+const GRID = {showgrid: true, gridcolor: '#eeeeee'};
+const PAD  = {l: 58, r: 14, t: 38, b: 42};
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let V0 = 30.0;
+let a  = 1.5;
+let E  = 15.0;
+
+// ─── Complex arithmetic ───────────────────────────────────────────────────────
+const C = {
+  add : (p, q) => ({re: p.re+q.re, im: p.im+q.im}),
+  sub : (p, q) => ({re: p.re-q.re, im: p.im-q.im}),
+  mul : (p, q) => ({re: p.re*q.re - p.im*q.im, im: p.re*q.im + p.im*q.re}),
+  div : (p, q) => { const d = q.re*q.re+q.im*q.im;
+                    return {re:(p.re*q.re+p.im*q.im)/d, im:(p.im*q.re-p.re*q.im)/d}; },
+  abs2: p => p.re*p.re + p.im*p.im,
+  ei  : θ => ({re: Math.cos(θ), im: Math.sin(θ)}),
+  cos : z => ({re:  Math.cos(z.re)*Math.cosh(z.im), im: -Math.sin(z.re)*Math.sinh(z.im)}),
+  sin : z => ({re:  Math.sin(z.re)*Math.cosh(z.im), im:  Math.cos(z.re)*Math.sinh(z.im)}),
+  expiq: (q, x) => {
+    const mag = Math.exp(-q.im * x);
+    return {re: mag*Math.cos(q.re*x), im: mag*Math.sin(q.re*x)};
+  },
+};
+
+// ─── Physics ──────────────────────────────────────────────────────────────────
+
+// Solve 1-D scattering off potential V_inside for |x|<a, 0 outside.
+// For the square BUMP: V_inside = +V0  (potSign = +1)
+// Returns {k, q, t, r, A_eiqa, B_emiqa, T, R}
+function solveScattering(E_eV, V0_eV, a_ang, potSign) {
+  const k = Math.sqrt(Math.max(E_eV, 1e-12) / HBAR2_OVER_2M);
+
+  // E_inside = E − potSign·V0
+  // Bump: E_inside = E − V0. Negative when E < V0 → evanescent (tunneling).
+  const E_in = E_eV - potSign * V0_eV;
+
+  const q = E_in >= 0
+    ? {re: Math.sqrt(E_in / HBAR2_OVER_2M), im: 0}
+    : {re: 0, im: Math.sqrt(-E_in / HBAR2_OVER_2M)};
+
+  if (C.abs2(q) < 1e-20) q.re = 1e-10;
+
+  const twoqa  = C.mul({re: 2*a_ang, im: 0}, q);
+  const cos2qa = C.cos(twoqa);
+  const sin2qa = C.sin(twoqa);
+
+  const k2    = {re: k*k, im: 0};
+  const q2    = C.mul(q, q);
+  const twokq = C.mul({re: 2*k, im: 0}, q);
+
+  // D = cos(2qa) − i·(k²+q²)/(2kq)·sin(2qa)
+  const ratio     = C.div(C.add(k2, q2), twokq);
+  const neg_i_rat = {re: ratio.im, im: -ratio.re};
+  const D = C.add(cos2qa, C.mul(neg_i_rat, sin2qa));
+
+  // t = e^(−2ika) / D
+  const t = C.div(C.ei(-2*k*a_ang), D);
+
+  // r = t · i·(q²−k²)/(2kq) · sin(2qa)
+  const i_q2mk2_over_2kq = C.mul({re:0,im:1}, C.div(C.sub(q2,k2), twokq));
+  const r = C.mul(t, C.mul(i_q2mk2_over_2kq, sin2qa));
+
+  // A·e^(iqa) = t·e^(ika)·(q+k)/(2q)
+  // B·e^(−iqa) = t·e^(ika)·(q−k)/(2q)
+  const t_eika  = C.mul(t, C.ei(k*a_ang));
+  const twoq    = C.mul({re:2,im:0}, q);
+  const A_eiqa  = C.div(C.mul(t_eika, C.add(q,{re:k,im:0})), twoq);
+  const B_emiqa = C.div(C.mul(t_eika, C.sub(q,{re:k,im:0})), twoq);
+
+  return {k, q, t, r, A_eiqa, B_emiqa, T: C.abs2(t), R: C.abs2(r)};
+}
+
+// Build Re[ψ] arrays for each component on xArr.
+function buildWavefunctions(E_eV, V0_eV, a_ang, potSign, xArr) {
+  const {k, q, t, r, A_eiqa, B_emiqa, T, R} =
+        solveScattering(E_eV, V0_eV, a_ang, potSign);
+
+  const n = xArr.length;
+  const total = new Float64Array(n);
+  const inc   = new Float64Array(n);
+  const refl  = new Float64Array(n);
+  const ins   = new Float64Array(n);
+  const trans = new Float64Array(n);
+  const regI = new Uint8Array(n), regII = new Uint8Array(n), regIII = new Uint8Array(n);
+
+  for (let i = 0; i < n; i++) {
+    const x = xArr[i];
+    if (x < -a_ang) {
+      regI[i] = 1;
+      const re_inc = Math.cos(k*x);
+      const re_ref = C.mul(r, C.ei(-k*x)).re;
+      inc[i]   = re_inc;
+      refl[i]  = re_ref;
+      total[i] = re_inc + re_ref;
+    } else if (x > a_ang) {
+      regIII[i] = 1;
+      const re_tr = C.mul(t, C.ei(k*x)).re;
+      trans[i] = re_tr;
+      total[i] = re_tr;
+    } else {
+      regII[i] = 1;
+      // A·e^(iqx) = A_eiqa · e^(iq(x−a))
+      // B·e^(−iqx) = B_emiqa · e^(iq(a−x))
+      const Aterm = C.mul(A_eiqa,  C.expiq(q, x - a_ang));
+      const Bterm = C.mul(B_emiqa, C.expiq(q, a_ang - x));
+      const val   = C.add(Aterm, Bterm).re;
+      ins[i]   = val;
+      total[i] = val;
+    }
+  }
+
+  return {total, inc, refl, ins, trans, regI, regII, regIII, T, R, k, q};
+}
+
+// Compute T(E) and R(E) curves.
+function computeTRCurve(V0_eV, a_ang, potSign) {
+  const Es = [], Ts = [], Rs = [];
+  for (let i = 0; i <= N_TR; i++) {
+    const Ei = 0.2 + (E_TR_MAX - 0.2) * i / N_TR;
+    const {T, R} = solveScattering(Ei, V0_eV, a_ang, potSign);
+    Es.push(Ei); Ts.push(T); Rs.push(R);
+  }
+  return {Es, Ts, Rs};
+}
+
+// ─── Trace builders ───────────────────────────────────────────────────────────
+
+function psiScale(V0_eV) { return 0.30 * V0_eV; }
+
+function makeWaveTraces(wf, xArr, a_ang, E_eV, V0_eV) {
+  const xs    = Array.from(xArr);
+  const scale = psiScale(V0_eV);
+
+  const lift = (arr, flag) =>
+    Array.from(arr).map((v, i) => flag[i] ? E_eV + scale * v : null);
+
+  // Potential profile V(x): flat 0 outside, +V0 inside (bump goes UP)
+  const xMin = xs[0], xMax = xs[xs.length - 1];
+  const xPot = [xMin, -a_ang, -a_ang, a_ang, a_ang, xMax];
+  const yPot = [    0,      0, +V0_eV, +V0_eV,     0,    0];
+
+  return [
+    // V(x)
+    { x: xPot, y: yPot,
+      type:'scatter', mode:'lines', name:'V(x)',
+      line:{color:'#222', width:2.5} },
+
+    // Energy baseline
+    { x:[xMin, xMax], y:[E_eV, E_eV],
+      type:'scatter', mode:'lines', name:`E = ${E_eV.toFixed(1)} eV`,
+      line:{color:'#888', width:1, dash:'dot'}, showlegend:true },
+
+    // Total
+    { x: xs, y: lift(wf.total, new Uint8Array(xs.length).fill(1)),
+      type:'scatter', mode:'lines', name:'Re[ψ] total',
+      line:{color:'#1a1a2e', width:2.5} },
+
+    // Incident — Region I
+    { x: xs, y: lift(wf.inc,   wf.regI),
+      type:'scatter', mode:'lines', name:'incident e<sup>ikx</sup>',
+      line:{color:'#4361ee', width:1.8, dash:'dash'} },
+
+    // Reflected — Region I
+    { x: xs, y: lift(wf.refl,  wf.regI),
+      type:'scatter', mode:'lines', name:'reflected r·e<sup>−ikx</sup>',
+      line:{color:'#e63946', width:1.8, dash:'dash'} },
+
+    // Interior — Region II
+    { x: xs, y: lift(wf.ins,   wf.regII),
+      type:'scatter', mode:'lines', name:'interior',
+      line:{color:'#9b5de5', width:1.8, dash:'dot'} },
+
+    // Transmitted — Region III
+    { x: xs, y: lift(wf.trans, wf.regIII),
+      type:'scatter', mode:'lines', name:'transmitted t·e<sup>ikx</sup>',
+      line:{color:'#2ecc71', width:1.8, dash:'dash'} },
+  ];
+}
+
+function makeTRTraces(V0_eV, a_ang, potSign, E_cur) {
+  const {Es, Ts, Rs} = computeTRCurve(V0_eV, a_ang, potSign);
+  const {T: T_cur, R: R_cur} = solveScattering(E_cur, V0_eV, a_ang, potSign);
+  return [
+    { x: Es, y: Ts, type:'scatter', mode:'lines',
+      name:'T (transmission)', line:{color:'#2ecc71', width:2} },
+    { x: Es, y: Rs, type:'scatter', mode:'lines',
+      name:'R (reflection)',   line:{color:'#e63946', width:2} },
+    // Barrier-top threshold line at E = V0
+    { x:[V0_eV, V0_eV], y:[0, 1.05], type:'scatter', mode:'lines',
+      name:`V₀ = ${V0_eV} eV`,
+      line:{color:'#f4a261', width:1.5, dash:'dash'}, showlegend:true },
+    // Current-E markers
+    { x:[E_cur], y:[T_cur], type:'scatter', mode:'markers',
+      name:`T = ${T_cur.toFixed(3)}`,
+      marker:{color:'#2ecc71', size:9, line:{color:'#fff',width:1.5}},
+      showlegend:true },
+    { x:[E_cur], y:[R_cur], type:'scatter', mode:'markers',
+      name:`R = ${R_cur.toFixed(3)}`,
+      marker:{color:'#e63946', size:9, line:{color:'#fff',width:1.5}},
+      showlegend:true },
+  ];
+}
+
+// ─── Layouts ──────────────────────────────────────────────────────────────────
+
+function lyWave(a_ang, E_eV, V0_eV) {
+  const xMin  = -(a_ang + X_EXTRA), xMax = a_ang + X_EXTRA;
+  const scale = psiScale(V0_eV);
+  // Show below 0 so Region I standing-wave troughs are visible,
+  // and above max(E, V0) so the bump top and wavefunction peaks both fit.
+  const yMin  = -(scale * 0.6);
+  const yMax  =  Math.max(E_eV, V0_eV) * 1.1 + scale * 2.2;
+  return {
+    title: {text: 'Wavefunction Re[ψ(x)] at incident energy E', font:{size:13}, x:0.5},
+    xaxis: {title:'x (Å)', range:[xMin, xMax], fixedrange:true, ...GRID},
+    yaxis: {title:'Energy (eV)', range:[yMin, yMax], fixedrange:true,
+            zeroline:true, zerolinecolor:'#bbb', ...GRID},
+    margin: PAD, height: 480,
+    paper_bgcolor:'white', plot_bgcolor:'#fafafa',
+    showlegend: true,
+    legend: {x:0.01, y:0.99, xanchor:'left', yanchor:'top',
+             font:{size:10}, bgcolor:'rgba(255,255,255,0.85)'},
+  };
+}
+
+function lyTR(V0_eV) {
+  return {
+    title: {text:'Transmission T(E) and Reflection R(E)', font:{size:13}, x:0.5},
+    xaxis: {title:'E (eV)', range:[0, E_TR_MAX], fixedrange:true, ...GRID},
+    yaxis: {title:'Probability', range:[0,1.05], fixedrange:true, ...GRID},
+    margin: {...PAD, l:54}, height: 480,
+    paper_bgcolor:'white', plot_bgcolor:'#fafafa',
+    showlegend:true,
+    legend:{x:0.55, y:0.97, font:{size:10}, bgcolor:'rgba(255,255,255,0.85)'},
+  };
+}
+
+// ─── Grid ─────────────────────────────────────────────────────────────────────
+
+function buildXArr(a_ang) {
+  const xMin = -(a_ang + X_EXTRA), xMax = a_ang + X_EXTRA;
+  return Float64Array.from({length: N_X},
+    (_, i) => xMin + (xMax - xMin) * i / (N_X - 1));
+}
+
+// ─── Update ───────────────────────────────────────────────────────────────────
+
+const POT_SIGN = +1;   // square BUMP: V_inside = +V0
+
+function statusStr(wf, E_cur, V0_cur, a_cur) {
+  const regime = E_cur < V0_cur ? 'tunneling' : 'above barrier';
+  const qStr   = wf.q.re > 1e-6
+    ? `q = ${wf.q.re.toFixed(3)} Å⁻¹`
+    : `κ = ${wf.q.im.toFixed(3)} Å⁻¹`;
+  return `E = ${E_cur.toFixed(2)} eV  |  V₀ = ${V0_cur} eV  |  a = ${a_cur.toFixed(2)} Å  |  ` +
+         `${regime}  |  k = ${wf.k.toFixed(3)} Å⁻¹  |  ${qStr}  |  ` +
+         `T = ${wf.T.toFixed(4)}  |  R = ${wf.R.toFixed(4)}  |  T+R = ${(wf.T+wf.R).toFixed(4)}`;
+}
+
+function updatePlots() {
+  const xArr = buildXArr(a);
+  const wf   = buildWavefunctions(E, V0, a, POT_SIGN, xArr);
+
+  Plotly.react('plot-wave', makeWaveTraces(wf, xArr, a, E, V0), lyWave(a, E, V0));
+  Plotly.react('plot-tr',   makeTRTraces(V0, a, POT_SIGN, E),   lyTR(V0));
+
+  document.getElementById('vd-V0').textContent = `${V0} eV`;
+  document.getElementById('vd-a').textContent  = `${a.toFixed(2)} Å`;
+  document.getElementById('vd-E').textContent  = `${E.toFixed(1)} eV`;
+  document.getElementById('status').textContent = statusStr(wf, E, V0, a);
+}
+
+function initPlots() {
+  const xArr = buildXArr(a);
+  const wf   = buildWavefunctions(E, V0, a, POT_SIGN, xArr);
+
+  Plotly.newPlot('plot-wave', makeWaveTraces(wf, xArr, a, E, V0), lyWave(a, E, V0), CFG);
+  Plotly.newPlot('plot-tr',   makeTRTraces(V0, a, POT_SIGN, E),   lyTR(V0),         CFG);
+
+  document.getElementById('vd-V0').textContent = `${V0} eV`;
+  document.getElementById('vd-a').textContent  = `${a.toFixed(2)} Å`;
+  document.getElementById('vd-E').textContent  = `${E.toFixed(1)} eV`;
+  document.getElementById('status').textContent = statusStr(wf, E, V0, a);
+}
+
+// ─── Event listeners ─────────────────────────────────────────────────────────
+
+document.getElementById('sl-V0').addEventListener('input', e => {
+  V0 = parseFloat(e.target.value); updatePlots();
+});
+document.getElementById('sl-a').addEventListener('input', e => {
+  a = parseFloat(e.target.value); updatePlots();
+});
+document.getElementById('sl-E').addEventListener('input', e => {
+  E = parseFloat(e.target.value); updatePlots();
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+initPlots();
+</script>
+</body>
+</html>
