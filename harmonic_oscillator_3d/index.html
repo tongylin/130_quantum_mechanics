@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Harmonic Oscillator — Physics 130A</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f0f2f5;
+  color: #222;
+  padding: 16px;
+}
+
+h1 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 0.83rem;
+  color: #666;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+#main-grid {
+  display: grid;
+  grid-template-columns: 58% 42%;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: start;
+}
+
+#right-col { display: flex; flex-direction: column; gap: 10px; }
+
+.plot-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09);
+  overflow: hidden;
+}
+
+.plot-card.titled {
+  padding: 8px 10px 4px;
+}
+.plot-card.titled .card-title {
+  font-size: 0.85rem;
+  color: #444;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.plot-card.titled .card-sub {
+  font-size: 0.74rem;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+#controls {
+  background: white;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+}
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ctrl-row label {
+  font-size: 0.85rem;
+  color: #444;
+  white-space: nowrap;
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid #d8dde5;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f6f7fa;
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  color: #555;
+  cursor: pointer;
+  font-family: inherit;
+}
+.seg button.active {
+  background: #4361ee;
+  color: white;
+}
+.seg button + button { border-left: 1px solid #d8dde5; }
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #d8dde5;
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: #f6f7fa;
+}
+.stepper button {
+  border: 0;
+  background: transparent;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: #555;
+  border-radius: 4px;
+}
+.stepper button:hover:not(:disabled) { background: #e4e8ee; color: #1a1a2e; }
+.stepper button:disabled { color: #bbb; cursor: not-allowed; }
+.stepper .val {
+  min-width: 22px;
+  text-align: center;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#status {
+  width: 100%;
+  font-size: 0.81rem;
+  color: #555;
+  padding-top: 6px;
+  border-top: 1px solid #f0f2f5;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+}
+
+/* Energy ladder */
+#ladder-card { padding: 8px 10px; }
+#ladder-header {
+  display: grid;
+  grid-template-columns: 28px 1fr 1fr;
+  font-size: 0.78rem;
+  color: #666;
+  font-weight: 600;
+  padding: 0 2px 4px;
+  border-bottom: 1px solid #eee;
+}
+#ladder {
+  font-size: 0.74rem;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.ladder-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 1fr;
+  padding: 3px 2px;
+  border-bottom: 1px solid #f3f4f6;
+  align-items: start;
+}
+.ladder-row .n-col {
+  color: #888;
+  font-weight: 600;
+  padding-top: 2px;
+}
+.ladder-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.qlabel {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #f0f2f5;
+  color: #444;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.qlabel:hover { background: #e4e8ee; }
+.qlabel.selected {
+  background: #4361ee;
+  color: white;
+  border-color: #3551d4;
+}
+
+/* Side-panel sub-grids */
+#side-cart {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  padding: 6px;
+}
+#side-sph {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  padding: 6px;
+}
+
+.mini-plot { background: white; border-radius: 6px; }
+
+@media (max-width: 800px) {
+  #main-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<h1>3D Isotropic Harmonic Oscillator</h1>
+<p class="subtitle">
+  V(r) = ½&thinsp;m&omega;²&thinsp;r² in dimensionless units (m = &omega; = &hbar; = 1).&emsp;
+  E<sub>N</sub> = (N + 3/2)&thinsp;&hbar;&omega;,&ensp;
+  with N = n<sub>x</sub>+n<sub>y</sub>+n<sub>z</sub> = 2n<sub>r</sub>+&ell;&emsp;
+  &mdash; same energy ladder in either basis, degeneracy (N+1)(N+2)/2.
+</p>
+
+<div id="controls">
+  <div class="ctrl-row">
+    <label>Basis</label>
+    <div class="seg" id="seg-basis">
+      <button data-v="sph" class="active">Spherical (n<sub>r</sub>,&ell;,m)</button>
+      <button data-v="cart">Cartesian (n<sub>x</sub>,n<sub>y</sub>,n<sub>z</sub>)</button>
+    </div>
+  </div>
+
+  <div class="ctrl-row" id="row-sph">
+    <label>n<sub>r</sub></label>
+    <div class="stepper" id="st-nr"><button data-d="-1">&minus;</button><span class="val">0</span><button data-d="1">+</button></div>
+    <label>&ell;</label>
+    <div class="stepper" id="st-l"><button data-d="-1">&minus;</button><span class="val">0</span><button data-d="1">+</button></div>
+    <label>m</label>
+    <div class="stepper" id="st-m"><button data-d="-1">&minus;</button><span class="val">0</span><button data-d="1">+</button></div>
+  </div>
+
+  <div class="ctrl-row" id="row-cart" style="display:none">
+    <label>n<sub>x</sub></label>
+    <div class="stepper" id="st-nx"><button data-d="-1">&minus;</button><span class="val">0</span><button data-d="1">+</button></div>
+    <label>n<sub>y</sub></label>
+    <div class="stepper" id="st-ny"><button data-d="-1">&minus;</button><span class="val">0</span><button data-d="1">+</button></div>
+    <label>n<sub>z</sub></label>
+    <div class="stepper" id="st-nz"><button data-d="-1">&minus;</button><span class="val">0</span><button data-d="1">+</button></div>
+  </div>
+
+  <div class="ctrl-row">
+    <label>Slice</label>
+    <div class="seg" id="seg-plane">
+      <button data-v="xz" class="active">xz</button>
+      <button data-v="xy">xy</button>
+      <button data-v="yz">yz</button>
+    </div>
+  </div>
+
+  <div class="ctrl-row">
+    <label>Show</label>
+    <div class="seg" id="seg-disp">
+      <button data-v="psi" class="active">&psi;</button>
+      <button data-v="psi2">|&psi;|²</button>
+    </div>
+    <div class="seg" id="seg-part" style="display:none">
+      <button data-v="re" class="active">Re</button>
+      <button data-v="im">Im</button>
+    </div>
+  </div>
+
+  <div id="status">Loading…</div>
+</div>
+
+<div id="main-grid">
+  <div id="left-col">
+    <div class="plot-card" id="plot-slice"></div>
+  </div>
+
+  <div id="right-col">
+    <div class="plot-card" id="ladder-card">
+      <div id="ladder-header">
+        <div>N</div><div>Spherical (n<sub>r</sub>, &ell;, m)</div><div>Cartesian (n<sub>x</sub>, n<sub>y</sub>, n<sub>z</sub>)</div>
+      </div>
+      <div id="ladder"></div>
+    </div>
+
+    <div class="plot-card titled" id="side-card">
+      <div class="card-title" id="side-title">Radial &amp; angular factors</div>
+      <div class="card-sub" id="side-sub">&psi;<sub>n&ell;m</sub>(r,&theta;,&phi;) = R<sub>n&ell;</sub>(r)&thinsp;Y<sub>&ell;m</sub>(&theta;,&phi;)</div>
+      <div id="side-sph">
+        <div class="mini-plot" id="plot-radial"></div>
+        <div class="mini-plot" id="plot-ylm"></div>
+      </div>
+      <div id="side-cart" style="display:none">
+        <div class="mini-plot" id="plot-px"></div>
+        <div class="mini-plot" id="plot-py"></div>
+        <div class="mini-plot" id="plot-pz"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ───────────────── Constants & config ─────────────────
+const N_MAX  = 6;          // max principal quantum number for the ladder
+const G_SLICE = 121;       // heatmap grid (per side)
+const G_ANG_PHI = 73;      // (φ, θ) grid for Y_lm panel
+const G_ANG_TH  = 49;
+const G_RAD   = 240;       // points in radial 1D plot
+const G_1D    = 300;       // points in Cartesian 1D factor plots
+
+const CFG = {responsive: true, displayModeBar: false};
+const GRID = {showgrid: true, gridcolor: '#eeeeee'};
+
+// ───────────────── State ─────────────────
+const S = {
+  basis: 'sph',                  // 'sph' | 'cart'
+  nr: 0, l: 0, m: 0,
+  nx: 0, ny: 0, nz: 0,
+  plane: 'xz',                   // 'xz' | 'xy' | 'yz'
+  disp: 'psi',                   // 'psi' | 'psi2'
+  part: 're',                    // 're' | 'im' (when psi & m != 0)
+};
+
+// ───────────────── Math helpers ─────────────────
+
+// factorial up to ~20 is safe in double; we go to ~21 max → use cache.
+const FACT = (() => {
+  const f = [1];
+  for (let i = 1; i <= 25; i++) f.push(f[i - 1] * i);
+  return f;
+})();
+
+// Lanczos gamma approximation. Adequate for all half-integer args we hit.
+function gamma(z) {
+  if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+  z -= 1;
+  const g = 7;
+  const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+             771.32342877765313, -176.61502916214059, 12.507343278686905,
+             -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  let x = c[0];
+  for (let i = 1; i < g + 2; i++) x += c[i] / (z + i);
+  const t = z + g + 0.5;
+  return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+}
+
+// Hermite H_n(x) via recurrence.
+function hermite(n, x) {
+  if (n === 0) return 1;
+  if (n === 1) return 2 * x;
+  let h0 = 1, h1 = 2 * x;
+  for (let k = 1; k < n; k++) {
+    const h2 = 2 * x * h1 - 2 * k * h0;
+    h0 = h1; h1 = h2;
+  }
+  return h1;
+}
+
+// 1D HO eigenfunction φ_n(x) = π^{-1/4} (2^n n!)^{-1/2} H_n(x) e^{-x²/2}
+function phi1D(n, x) {
+  const norm = Math.pow(Math.PI, -0.25) / Math.sqrt(Math.pow(2, n) * FACT[n]);
+  return norm * hermite(n, x) * Math.exp(-0.5 * x * x);
+}
+
+// Generalized Laguerre L_n^α(x).
+function laguerre(n, alpha, x) {
+  if (n === 0) return 1;
+  if (n === 1) return 1 + alpha - x;
+  let l0 = 1, l1 = 1 + alpha - x;
+  for (let k = 1; k < n; k++) {
+    const l2 = ((2 * k + 1 + alpha - x) * l1 - (k + alpha) * l0) / (k + 1);
+    l0 = l1; l1 = l2;
+  }
+  return l1;
+}
+
+// Radial 3D HO R_{nl}(r) (dimensionless), with normalization ∫₀^∞ |R|² r² dr = 1.
+function R_nl(n, l, r) {
+  const norm = Math.sqrt(2 * FACT[n] / gamma(n + l + 1.5));
+  return norm * Math.pow(r, l) * laguerre(n, l + 0.5, r * r) * Math.exp(-0.5 * r * r);
+}
+
+// Associated Legendre P_l^m(x), Condon–Shortley convention (includes (-1)^m).
+// m ≥ 0 required; the calling code handles negative m via Y_{l,-m} = (-1)^m Y_{lm}*.
+function plm(l, m, x) {
+  // P_m^m(x) = (-1)^m (2m-1)!! (1-x²)^{m/2}
+  let pmm = 1.0;
+  if (m > 0) {
+    const somx2 = Math.sqrt(Math.max(1 - x * x, 0));
+    let fact = 1;
+    for (let i = 1; i <= m; i++) {
+      pmm *= -fact * somx2;
+      fact += 2;
+    }
+  }
+  if (l === m) return pmm;
+  // P_{m+1}^m(x) = x (2m+1) P_m^m(x)
+  let pmmp1 = x * (2 * m + 1) * pmm;
+  if (l === m + 1) return pmmp1;
+  // Upward recurrence in l.
+  let pll = 0;
+  for (let ll = m + 2; ll <= l; ll++) {
+    pll = ((2 * ll - 1) * x * pmmp1 - (ll + m - 1) * pmm) / (ll - m);
+    pmm = pmmp1; pmmp1 = pll;
+  }
+  return pll;
+}
+
+// Y_lm(θ, φ) → {re, im}.
+function Ylm(l, m, theta, phi) {
+  const absm = Math.abs(m);
+  const norm = Math.sqrt((2 * l + 1) / (4 * Math.PI)
+                          * FACT[l - absm] / FACT[l + absm]);
+  const p = plm(l, absm, Math.cos(theta));
+  // For m >= 0: Y_lm = norm * P_l^m(cosθ) * e^{imφ}   (Condon-Shortley already in P_l^m)
+  // For m  < 0: Y_{l,-|m|} = (-1)^|m| Y_{l,|m|}*  →  add (-1)^|m| factor and conjugate the exp.
+  const sign = (m < 0 && (absm % 2 === 1)) ? -1 : 1;
+  const arg  = m * phi;
+  return { re: sign * norm * p * Math.cos(arg),
+           im: sign * norm * p * Math.sin(arg) };
+}
+
+// Full wavefunctions (return {re, im}; Cartesian has im = 0).
+function psiCart(nx, ny, nz, x, y, z) {
+  return { re: phi1D(nx, x) * phi1D(ny, y) * phi1D(nz, z), im: 0 };
+}
+function psiSph(nr, l, m, x, y, z) {
+  const r = Math.sqrt(x * x + y * y + z * z);
+  if (r < 1e-12) {
+    // Only l=0 has nonzero ψ at origin.
+    if (l === 0) {
+      const R = R_nl(nr, 0, 0);
+      const Y = Ylm(0, 0, 0, 0);
+      return { re: R * Y.re, im: R * Y.im };
+    }
+    return { re: 0, im: 0 };
+  }
+  const theta = Math.acos(Math.max(-1, Math.min(1, z / r)));
+  const phi   = Math.atan2(y, x);
+  const R = R_nl(nr, l, r);
+  const Y = Ylm(l, m, theta, phi);
+  return { re: R * Y.re, im: R * Y.im };
+}
+
+// ───────────────── State enumeration ─────────────────
+
+// Cartesian triples with n_x+n_y+n_z = N, in (nx, ny, nz) lex order.
+function cartStatesForN(N) {
+  const out = [];
+  for (let nx = 0; nx <= N; nx++)
+    for (let ny = 0; ny <= N - nx; ny++)
+      out.push([nx, ny, N - nx - ny]);
+  return out;
+}
+// Spherical (n_r, l, m) with 2 n_r + l = N, l ≥ 0, parity matching N.
+function sphStatesForN(N) {
+  const out = [];
+  for (let nr = 0; 2 * nr <= N; nr++) {
+    const l = N - 2 * nr;
+    for (let m = -l; m <= l; m++) out.push([nr, l, m]);
+  }
+  return out;
+}
+// Sanity check at boot.
+function checkDegeneracies() {
+  for (let N = 0; N <= N_MAX; N++) {
+    const expected = ((N + 1) * (N + 2)) / 2;
+    const cs = cartStatesForN(N).length;
+    const ss = sphStatesForN(N).length;
+    if (cs !== expected || ss !== expected) {
+      console.warn(`Degeneracy mismatch at N=${N}: expected ${expected}, cart=${cs}, sph=${ss}`);
+    }
+  }
+}
+
+// ───────────────── Slice computation ─────────────────
+
+// Choose a comfortable plotting half-range from the principal quantum number.
+function rMax() {
+  const N = currentN();
+  return Math.sqrt(2 * (N + 3)) + 2;
+}
+
+function currentN() {
+  return S.basis === 'sph' ? (2 * S.nr + S.l) : (S.nx + S.ny + S.nz);
+}
+
+function currentEnergy() { return currentN() + 1.5; }
+
+function linspace(a, b, n) {
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) out[i] = a + (b - a) * i / (n - 1);
+  return out;
+}
+
+// Compute the displayed 2D scalar field on the slice plane.
+// Returns { xs, ys, z (2D array), zmax (positive scale), signed (bool) }.
+function computeSlice() {
+  const R = rMax();
+  const xs = linspace(-R, R, G_SLICE);
+  const ys = linspace(-R, R, G_SLICE);
+  const z = new Array(G_SLICE);
+
+  // Pick axis embedding for the slice plane.
+  // Heatmap rows indexed by ys (vertical), cols by xs (horizontal).
+  const embed = (() => {
+    switch (S.plane) {
+      case 'xz': return (u, v) => [u, 0, v];          // x = u, y = 0, z = v
+      case 'xy': return (u, v) => [u, v, 0];          // x = u, y = v, z = 0
+      case 'yz': return (u, v) => [0, u, v];          // x = 0, y = u, z = v
+    }
+  })();
+
+  let zabsmax = 0;
+  for (let j = 0; j < G_SLICE; j++) {
+    const row = new Float64Array(G_SLICE);
+    for (let i = 0; i < G_SLICE; i++) {
+      const [x, y, zc] = embed(xs[i], ys[j]);
+      const psi = (S.basis === 'cart')
+        ? psiCart(S.nx, S.ny, S.nz, x, y, zc)
+        : psiSph(S.nr, S.l, S.m, x, y, zc);
+      let v;
+      if (S.disp === 'psi2') {
+        v = psi.re * psi.re + psi.im * psi.im;
+      } else {
+        v = (S.part === 'im') ? psi.im : psi.re;
+      }
+      row[i] = v;
+      const av = Math.abs(v);
+      if (av > zabsmax) zabsmax = av;
+    }
+    z[j] = Array.from(row);
+  }
+
+  // Axis labels for the plane.
+  const labels = ({ xz: ['x', 'z'], xy: ['x', 'y'], yz: ['y', 'z'] })[S.plane];
+
+  return {
+    xs: Array.from(xs), ys: Array.from(ys), z,
+    zmax: zabsmax, signed: (S.disp === 'psi'),
+    xlabel: labels[0], ylabel: labels[1],
+  };
+}
+
+// ───────────────── Plot builders ─────────────────
+
+function drawSlice() {
+  const { xs, ys, z, zmax, signed, xlabel, ylabel } = computeSlice();
+  // Anything below this is numerical noise (sin(π) ≈ 1.2e-16, etc.) — render flat.
+  const ZERO_THRESH = 1e-10;
+  const isZero = zmax < ZERO_THRESH;
+  const safeMax = isZero ? 1 : zmax;
+  const trace = signed ? {
+    type: 'heatmap', x: xs, y: ys, z,
+    colorscale: 'RdBu', reversescale: true,
+    zmin: -safeMax, zmax: safeMax,
+    colorbar: { thickness: 10, len: 0.85, tickfont: { size: 9 } },
+  } : {
+    type: 'heatmap', x: xs, y: ys, z,
+    colorscale: 'Viridis',
+    zmin: 0, zmax: safeMax,
+    colorbar: { thickness: 10, len: 0.85, tickfont: { size: 9 } },
+  };
+
+  const title = sliceTitle(isZero);
+
+  const layout = {
+    title: { text: title, font: { size: 13 }, x: 0.5 },
+    xaxis: { title: xlabel, fixedrange: true, ...GRID },
+    yaxis: { title: ylabel, scaleanchor: 'x', scaleratio: 1,
+             fixedrange: true, ...GRID },
+    margin: { l: 50, r: 14, t: 40, b: 42 },
+    height: 540,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+  };
+  Plotly.react('plot-slice', [trace], layout, CFG);
+}
+
+function sliceTitle(isZero = false) {
+  const label = stateLabel();
+  let what;
+  if (S.disp === 'psi2') what = '|ψ|²';
+  else if (S.basis === 'sph' && S.m !== 0) what = `${S.part === 'im' ? 'Im' : 'Re'}[ψ]`;
+  else what = 'ψ';
+  const suffix = isZero ? '  ·  vanishes identically in this slice' : '';
+  return `${what} for ${label}  —  ${S.plane} slice  —  E = ${currentEnergy().toFixed(1)} ℏω${suffix}`;
+}
+
+function stateLabel() {
+  return S.basis === 'sph'
+    ? `(n_r, ℓ, m) = (${S.nr}, ${S.l}, ${S.m})`
+    : `(n_x, n_y, n_z) = (${S.nx}, ${S.ny}, ${S.nz})`;
+}
+
+function drawSidePanel() {
+  if (S.basis === 'sph') {
+    document.getElementById('side-sph').style.display = '';
+    document.getElementById('side-cart').style.display = 'none';
+    drawRadial();
+    drawYlmPanel();
+  } else {
+    document.getElementById('side-sph').style.display = 'none';
+    document.getElementById('side-cart').style.display = '';
+    drawCartFactors();
+  }
+}
+
+function drawRadial() {
+  const R = rMax();
+  const rs = linspace(0, R, G_RAD);
+  const Rvals = new Array(G_RAD);
+  const rPv   = new Array(G_RAD);
+  for (let i = 0; i < G_RAD; i++) {
+    const r = rs[i];
+    const v = R_nl(S.nr, S.l, r);
+    Rvals[i] = v;
+    rPv[i]   = r * r * v * v;
+  }
+  const layout = {
+    title: { text: `R_{${S.nr},${S.l}}(r) and r²|R|²`, font: { size: 12 }, x: 0.5 },
+    xaxis: { title: 'r', fixedrange: true, ...GRID },
+    yaxis: { title: '', fixedrange: true, zeroline: true,
+             zerolinecolor: '#bbb', ...GRID },
+    margin: { l: 42, r: 10, t: 32, b: 36 },
+    height: 220,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+    legend: { x: 0.98, xanchor: 'right', y: 0.98, font: { size: 9 },
+              bgcolor: 'rgba(255,255,255,0.85)' },
+  };
+  Plotly.react('plot-radial', [
+    { x: Array.from(rs), y: Rvals, type: 'scatter', mode: 'lines',
+      name: 'R_{n,ℓ}(r)', line: { color: '#4361ee', width: 2 } },
+    { x: Array.from(rs), y: rPv, type: 'scatter', mode: 'lines',
+      name: 'r²|R|²', line: { color: '#e63946', width: 2, dash: 'dot' } },
+  ], layout, CFG);
+}
+
+function drawYlmPanel() {
+  // 2D heatmap of Re[Y_lm(θ,φ)] on (φ, θ). The cos(mφ) stripes make
+  // the L_z eigenvalue visible at a glance: m maxima around the circle.
+  const phis = linspace(0, 2 * Math.PI, G_ANG_PHI);
+  const ths  = linspace(0, Math.PI, G_ANG_TH);
+  const z = new Array(G_ANG_TH);
+  let zabsmax = 0;
+  for (let j = 0; j < G_ANG_TH; j++) {
+    const row = new Float64Array(G_ANG_PHI);
+    for (let i = 0; i < G_ANG_PHI; i++) {
+      const y = Ylm(S.l, S.m, ths[j], phis[i]);
+      row[i] = y.re;
+      const av = Math.abs(y.re);
+      if (av > zabsmax) zabsmax = av;
+    }
+    z[j] = Array.from(row);
+  }
+  const safeMax = zabsmax > 1e-12 ? zabsmax : 1;
+  const trace = {
+    type: 'heatmap', x: Array.from(phis), y: Array.from(ths), z,
+    colorscale: 'RdBu', reversescale: true,
+    zmin: -safeMax, zmax: safeMax,
+    colorbar: { thickness: 8, len: 0.85, tickfont: { size: 8 } },
+  };
+  const subtitle = (S.m === 0)
+    ? '(m = 0: φ-independent)'
+    : `(cos(${S.m}φ) gives ${2 * Math.abs(S.m)} azimuthal lobes; |m| = L_z/ℏ)`;
+  const layout = {
+    title: { text: `Re[Y_{${S.l},${S.m}}(θ,φ)]  ${subtitle}`,
+             font: { size: 11 }, x: 0.5 },
+    xaxis: { title: 'φ', range: [0, 2 * Math.PI], fixedrange: true,
+             tickvals: [0, Math.PI, 2 * Math.PI], ticktext: ['0', 'π', '2π'], ...GRID },
+    yaxis: { title: 'θ', range: [0, Math.PI], fixedrange: true,
+             tickvals: [0, Math.PI / 2, Math.PI], ticktext: ['0', 'π/2', 'π'], ...GRID },
+    margin: { l: 42, r: 10, t: 30, b: 34 },
+    height: 220,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+  };
+  Plotly.react('plot-ylm', [trace], layout, CFG);
+}
+
+function drawCartFactors() {
+  const R = rMax();
+  const xs = linspace(-R, R, G_1D);
+  const ns = [S.nx, S.ny, S.nz];
+  const labels = ['φ_{n_x}(x)', 'φ_{n_y}(y)', 'φ_{n_z}(z)'];
+  const ids = ['plot-px', 'plot-py', 'plot-pz'];
+  const colors = ['#4361ee', '#2ecc71', '#e63946'];
+  for (let k = 0; k < 3; k++) {
+    const ys = new Array(G_1D);
+    for (let i = 0; i < G_1D; i++) ys[i] = phi1D(ns[k], xs[i]);
+    const layout = {
+      title: { text: `${labels[k]},  n = ${ns[k]}`, font: { size: 11 }, x: 0.5 },
+      xaxis: { fixedrange: true, ...GRID, zeroline: true, zerolinecolor: '#bbb' },
+      yaxis: { fixedrange: true, ...GRID, zeroline: true, zerolinecolor: '#bbb' },
+      margin: { l: 36, r: 8, t: 28, b: 30 },
+      height: 200,
+      paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+    };
+    Plotly.react(ids[k], [{
+      x: Array.from(xs), y: ys, type: 'scatter', mode: 'lines',
+      line: { color: colors[k], width: 2 },
+    }], layout, CFG);
+  }
+}
+
+// ───────────────── Energy ladder ─────────────────
+
+function buildLadder() {
+  const root = document.getElementById('ladder');
+  root.innerHTML = '';
+  for (let N = 0; N <= N_MAX; N++) {
+    const row = document.createElement('div');
+    row.className = 'ladder-row';
+
+    const nc = document.createElement('div');
+    nc.className = 'n-col';
+    nc.textContent = N;
+    row.appendChild(nc);
+
+    // Spherical column
+    const sphCol = document.createElement('div');
+    sphCol.className = 'ladder-cells';
+    for (const [nr, l, m] of sphStatesForN(N)) {
+      const cell = document.createElement('span');
+      cell.className = 'qlabel';
+      cell.dataset.basis = 'sph';
+      cell.dataset.nr = nr; cell.dataset.l = l; cell.dataset.m = m;
+      cell.textContent = `${nr},${l},${m}`;
+      cell.title = `Spherical state n_r=${nr}, ℓ=${l}, m=${m}`;
+      sphCol.appendChild(cell);
+    }
+    row.appendChild(sphCol);
+
+    // Cartesian column
+    const cartCol = document.createElement('div');
+    cartCol.className = 'ladder-cells';
+    for (const [nx, ny, nz] of cartStatesForN(N)) {
+      const cell = document.createElement('span');
+      cell.className = 'qlabel';
+      cell.dataset.basis = 'cart';
+      cell.dataset.nx = nx; cell.dataset.ny = ny; cell.dataset.nz = nz;
+      cell.textContent = `${nx},${ny},${nz}`;
+      cell.title = `Cartesian state (${nx},${ny},${nz})`;
+      cartCol.appendChild(cell);
+    }
+    row.appendChild(cartCol);
+
+    root.appendChild(row);
+  }
+
+  // Delegated click → select state.
+  root.onclick = (ev) => {
+    const t = ev.target.closest('.qlabel');
+    if (!t) return;
+    if (t.dataset.basis === 'sph') {
+      setBasis('sph');
+      S.nr = +t.dataset.nr; S.l = +t.dataset.l; S.m = +t.dataset.m;
+    } else {
+      setBasis('cart');
+      S.nx = +t.dataset.nx; S.ny = +t.dataset.ny; S.nz = +t.dataset.nz;
+    }
+    syncControls();
+    redraw();
+  };
+}
+
+function highlightLadder() {
+  const cells = document.querySelectorAll('#ladder .qlabel');
+  cells.forEach(c => {
+    let on = false;
+    if (S.basis === 'sph' && c.dataset.basis === 'sph') {
+      on = (+c.dataset.nr === S.nr && +c.dataset.l === S.l && +c.dataset.m === S.m);
+    } else if (S.basis === 'cart' && c.dataset.basis === 'cart') {
+      on = (+c.dataset.nx === S.nx && +c.dataset.ny === S.ny && +c.dataset.nz === S.nz);
+    }
+    c.classList.toggle('selected', on);
+  });
+}
+
+// ───────────────── Control wiring ─────────────────
+
+function setBasis(b) {
+  S.basis = b;
+  document.querySelectorAll('#seg-basis button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.v === b);
+  });
+  document.getElementById('row-sph').style.display  = (b === 'sph')  ? '' : 'none';
+  document.getElementById('row-cart').style.display = (b === 'cart') ? '' : 'none';
+  document.getElementById('side-title').textContent = (b === 'sph')
+    ? 'Radial & angular factors'
+    : '1D Cartesian factors';
+  document.getElementById('side-sub').innerHTML = (b === 'sph')
+    ? 'ψ<sub>nℓm</sub>(r,θ,φ) = R<sub>nℓ</sub>(r)&thinsp;Y<sub>ℓm</sub>(θ,φ)'
+    : 'ψ(x,y,z) = φ<sub>n<sub>x</sub></sub>(x) φ<sub>n<sub>y</sub></sub>(y) φ<sub>n<sub>z</sub></sub>(z)';
+}
+
+function syncControls() {
+  // Stepper labels
+  document.querySelector('#st-nr .val').textContent = S.nr;
+  document.querySelector('#st-l  .val').textContent = S.l;
+  document.querySelector('#st-m  .val').textContent = S.m;
+  document.querySelector('#st-nx .val').textContent = S.nx;
+  document.querySelector('#st-ny .val').textContent = S.ny;
+  document.querySelector('#st-nz .val').textContent = S.nz;
+  // Re/Im selector visibility
+  const showPart = (S.basis === 'sph' && S.m !== 0 && S.disp === 'psi');
+  document.getElementById('seg-part').style.display = showPart ? '' : 'none';
+}
+
+function updateStatus() {
+  const N = currentN();
+  const deg = ((N + 1) * (N + 2)) / 2;
+  const extra = (S.basis === 'sph' && S.m !== 0 && S.disp === 'psi')
+    ? `   |  ψ is complex (m ≠ 0); plotting ${S.part === 'im' ? 'Im[ψ]' : 'Re[ψ]'}`
+    : '';
+  document.getElementById('status').textContent =
+    `${stateLabel()}  |  N = ${N}  |  E = (N + 3/2) ℏω = ${currentEnergy().toFixed(1)} ℏω  |  ` +
+    `degeneracy g_N = ${deg}${extra}`;
+}
+
+// Per-control bounds.
+function clampState() {
+  if (S.basis === 'sph') {
+    S.nr = Math.max(0, Math.min(Math.floor(N_MAX / 2), S.nr));
+    S.l  = Math.max(0, Math.min(N_MAX - 2 * S.nr, S.l));
+    S.m  = Math.max(-S.l, Math.min(S.l, S.m));
+  } else {
+    S.nx = Math.max(0, Math.min(N_MAX, S.nx));
+    S.ny = Math.max(0, Math.min(N_MAX - S.nx, S.ny));
+    S.nz = Math.max(0, Math.min(N_MAX - S.nx - S.ny, S.nz));
+  }
+}
+
+function redraw() {
+  clampState();
+  syncControls();
+  drawSlice();
+  drawSidePanel();
+  highlightLadder();
+  updateStatus();
+}
+
+function wireSteppers() {
+  const handle = (id, get, set) => {
+    document.querySelectorAll(`#${id} button`).forEach(b => {
+      b.addEventListener('click', () => {
+        set(get() + parseInt(b.dataset.d, 10));
+        redraw();
+      });
+    });
+  };
+  handle('st-nr', () => S.nr, v => S.nr = v);
+  handle('st-l',  () => S.l,  v => { S.l = v; });
+  handle('st-m',  () => S.m,  v => S.m = v);
+  handle('st-nx', () => S.nx, v => S.nx = v);
+  handle('st-ny', () => S.ny, v => S.ny = v);
+  handle('st-nz', () => S.nz, v => S.nz = v);
+}
+
+function wireSegments() {
+  document.querySelectorAll('#seg-basis button').forEach(b => {
+    b.addEventListener('click', () => { setBasis(b.dataset.v); redraw(); });
+  });
+  document.querySelectorAll('#seg-plane button').forEach(b => {
+    b.addEventListener('click', () => {
+      S.plane = b.dataset.v;
+      document.querySelectorAll('#seg-plane button').forEach(x =>
+        x.classList.toggle('active', x.dataset.v === S.plane));
+      redraw();
+    });
+  });
+  document.querySelectorAll('#seg-disp button').forEach(b => {
+    b.addEventListener('click', () => {
+      S.disp = b.dataset.v;
+      document.querySelectorAll('#seg-disp button').forEach(x =>
+        x.classList.toggle('active', x.dataset.v === S.disp));
+      redraw();
+    });
+  });
+  document.querySelectorAll('#seg-part button').forEach(b => {
+    b.addEventListener('click', () => {
+      S.part = b.dataset.v;
+      document.querySelectorAll('#seg-part button').forEach(x =>
+        x.classList.toggle('active', x.dataset.v === S.part));
+      redraw();
+    });
+  });
+}
+
+// ───────────────── Boot ─────────────────
+checkDegeneracies();
+buildLadder();
+wireSteppers();
+wireSegments();
+setBasis('sph');
+redraw();
+</script>
+</body>
+</html>
