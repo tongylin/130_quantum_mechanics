@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hydrogen Atom — Physics 130A</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f0f2f5;
+  color: #222;
+  padding: 16px;
+}
+
+h1 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  font-size: 0.83rem;
+  color: #666;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+#main-grid {
+  display: grid;
+  grid-template-columns: 58% 42%;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: start;
+}
+
+.plot-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.09);
+  overflow: hidden;
+}
+.plot-card.titled { padding: 8px 10px 4px; }
+.plot-card.titled .card-title {
+  font-size: 0.85rem;
+  color: #444;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.plot-card.titled .card-sub {
+  font-size: 0.74rem;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+/* ─────────── Spectrum panel ─────────── */
+#spectrum-card { padding: 10px 12px; }
+#spectrum-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 6px;
+}
+#spectrum-header h2 {
+  font-size: 0.95rem; font-weight: 600; color: #1a1a2e;
+}
+#spectrum-header .hint {
+  font-size: 0.74rem; color: #888;
+}
+
+#spectrum {
+  position: relative;
+  width: 100%;
+  height: 620px;
+  /* leave room on the left for energy-axis labels */
+  padding-left: 108px;
+  padding-right: 8px;
+  padding-top: 14px;
+  padding-bottom: 28px;
+}
+#spectrum-axis {
+  position: absolute;
+  left: 0; top: 14px;
+  width: 102px;
+  height: calc(100% - 14px - 28px);
+  border-right: 1.5px solid #cbd2dc;
+}
+.axis-tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 0.72rem;
+  color: #555;
+  padding-right: 6px;
+  white-space: nowrap;
+}
+.axis-tick::after {
+  content: '';
+  position: absolute;
+  right: -5px; top: 50%;
+  width: 5px; height: 1.5px;
+  background: #cbd2dc;
+}
+.axis-label-vert {
+  position: absolute;
+  left: -34px; top: 50%;
+  transform: rotate(-90deg) translateX(50%);
+  transform-origin: left top;
+  font-size: 0.72rem;
+  color: #888;
+}
+
+#spectrum-plane {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.energy-line {
+  position: absolute;
+  left: 0;
+  height: 1px;
+  background: #e0e4ea;
+  pointer-events: none;
+}
+.energy-line.continuum {
+  background: transparent;
+  border-top: 1px dashed #c8ced8;
+}
+
+.orbital-card {
+  position: absolute;
+  width: 96px;
+  height: 78px;
+  background: white;
+  border: 1.5px solid #d8dde5;
+  border-radius: 6px;
+  cursor: pointer;
+  transform: translate(0, -50%);
+  transition: border-color 0.1s, box-shadow 0.1s;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.orbital-card:hover {
+  border-color: #4361ee;
+  box-shadow: 0 2px 6px rgba(67,97,238,0.18);
+}
+.orbital-card.selected {
+  border-color: #4361ee;
+  background: #f0f5ff;
+  box-shadow: 0 2px 6px rgba(67,97,238,0.25);
+}
+.orbital-card .name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  padding: 2px 6px 0;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+}
+.orbital-card .spark {
+  flex: 1;
+  position: relative;
+}
+.orbital-card .spark svg {
+  width: 100%; height: 100%; display: block;
+}
+
+/* ─────────── Side panel ─────────── */
+#side-card { padding: 10px 12px; }
+#side-header h2 {
+  font-size: 1.05rem; font-weight: 600; color: #1a1a2e;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+}
+#side-meta {
+  font-size: 0.78rem;
+  color: #555;
+  margin: 4px 0 8px;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  line-height: 1.5;
+}
+
+.m-row {
+  display: flex; align-items: center; gap: 8px; margin: 6px 0 10px;
+}
+.m-row label { font-size: 0.85rem; color: #444; }
+.stepper {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid #d8dde5; border-radius: 6px;
+  padding: 2px 4px; background: #f6f7fa;
+}
+.stepper button {
+  border: 0; background: transparent; width: 22px; height: 22px;
+  cursor: pointer; font-size: 1rem; line-height: 1; color: #555;
+  border-radius: 4px;
+}
+.stepper button:hover:not(:disabled) { background: #e4e8ee; color: #1a1a2e; }
+.stepper button:disabled { color: #bbb; cursor: not-allowed; }
+.stepper .val {
+  min-width: 28px; text-align: center;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 0.85rem; font-variant-numeric: tabular-nums;
+}
+.seg {
+  display: inline-flex; border: 1px solid #d8dde5; border-radius: 6px;
+  overflow: hidden; background: #f6f7fa;
+}
+.seg button {
+  border: 0; background: transparent; padding: 4px 8px;
+  font-size: 0.78rem; color: #555; cursor: pointer; font-family: inherit;
+}
+.seg button.active { background: #4361ee; color: white; }
+.seg button + button { border-left: 1px solid #d8dde5; }
+
+.side-plot-row { display: grid; gap: 6px; margin-bottom: 6px; }
+.mini-plot { background: white; border-radius: 6px; }
+
+@media (max-width: 820px) {
+  #main-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<h1>Hydrogen Atom — Bound-State Wavefunctions</h1>
+<p class="subtitle">
+  V(r) = &minus;e²/(4&pi;&epsilon;<sub>0</sub>r).&emsp;
+  Bound spectrum E<sub>n</sub> = &minus;13.6&thinsp;eV/n²,&ensp;degenerate in &ell; (Coulomb accidental degeneracy).&emsp;
+  &psi;<sub>n&ell;m</sub>(r,&theta;,&phi;) = R<sub>n&ell;</sub>(r) Y<sub>&ell;m</sub>(&theta;,&phi;).&emsp;
+  Lengths in a<sub>0</sub> (Bohr radius), energies in eV.
+</p>
+
+<div id="main-grid">
+  <div id="left-col">
+    <div class="plot-card" id="spectrum-card">
+      <div id="spectrum-header">
+        <h2>Spectrum (not to scale) & radial probability</h2>
+        <span class="hint">Click an orbital card to inspect it →</span>
+      </div>
+      <div id="spectrum">
+        <div id="spectrum-axis"></div>
+        <div id="spectrum-plane"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="right-col">
+    <div class="plot-card" id="side-card">
+      <div id="side-header"><h2 id="side-label">1s</h2></div>
+      <div id="side-meta">…</div>
+
+      <div class="m-row">
+        <label>m</label>
+        <div class="stepper" id="st-m"><button data-d="-1">&minus;</button><span class="val">0</span><button data-d="1">+</button></div>
+        <label style="margin-left: 14px">slice</label>
+        <div class="seg" id="seg-disp">
+          <button data-v="psi" class="active">&psi;</button>
+          <button data-v="psi2">|&psi;|²</button>
+        </div>
+        <div class="seg" id="seg-part" style="display:none">
+          <button data-v="re" class="active">Re</button>
+          <button data-v="im">Im</button>
+        </div>
+      </div>
+
+      <div class="side-plot-row">
+        <div class="mini-plot" id="plot-radial"></div>
+      </div>
+      <div class="side-plot-row">
+        <div class="mini-plot" id="plot-slice"></div>
+      </div>
+      <div class="side-plot-row">
+        <div class="mini-plot" id="plot-ylm"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ───────────────── Constants & config ─────────────────
+const N_MAX = 4;                                      // up to 4s, 4p, 4d, 4f
+const E_RY  = 13.605693;                              // eV; Rydberg in eV
+const CFG   = {responsive: true, displayModeBar: false};
+const GRID  = {showgrid: true, gridcolor: '#eeeeee'};
+const ORBITAL_LETTERS = ['s', 'p', 'd', 'f', 'g', 'h'];
+
+// Common r-axis for all cards: hold across orbitals so peak positions are visually comparable.
+const R_COMMON_MAX = 50;     // a₀
+const SPARK_N = 90;          // points in card sparkline
+const G_RAD_BIG = 320;       // points in big radial plot
+const G_SLICE = 121;         // heatmap grid
+const G_ANG_PHI = 73;
+const G_ANG_TH  = 49;
+
+// ───────────────── State ─────────────────
+const S = {
+  n: 1, l: 0, m: 0,
+  disp: 'psi2',     // hydrogen orbitals: |ψ|² is the most useful default
+  part: 're',
+};
+
+// ───────────────── Math helpers (reused style from HO demo) ─────────────────
+const FACT = (() => { const f = [1]; for (let i = 1; i <= 25; i++) f.push(f[i-1] * i); return f; })();
+
+function gamma(z) {
+  if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+  z -= 1;
+  const g = 7;
+  const c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+             771.32342877765313, -176.61502916214059, 12.507343278686905,
+             -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  let x = c[0];
+  for (let i = 1; i < g + 2; i++) x += c[i] / (z + i);
+  const t = z + g + 0.5;
+  return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+}
+
+function laguerre(n, alpha, x) {
+  if (n === 0) return 1;
+  if (n === 1) return 1 + alpha - x;
+  let l0 = 1, l1 = 1 + alpha - x;
+  for (let k = 1; k < n; k++) {
+    const l2 = ((2 * k + 1 + alpha - x) * l1 - (k + alpha) * l0) / (k + 1);
+    l0 = l1; l1 = l2;
+  }
+  return l1;
+}
+
+function plm(l, m, x) {
+  let pmm = 1.0;
+  if (m > 0) {
+    const somx2 = Math.sqrt(Math.max(1 - x * x, 0));
+    let fact = 1;
+    for (let i = 1; i <= m; i++) { pmm *= -fact * somx2; fact += 2; }
+  }
+  if (l === m) return pmm;
+  let pmmp1 = x * (2 * m + 1) * pmm;
+  if (l === m + 1) return pmmp1;
+  let pll = 0;
+  for (let ll = m + 2; ll <= l; ll++) {
+    pll = ((2 * ll - 1) * x * pmmp1 - (ll + m - 1) * pmm) / (ll - m);
+    pmm = pmmp1; pmmp1 = pll;
+  }
+  return pll;
+}
+
+function Ylm(l, m, theta, phi) {
+  const absm = Math.abs(m);
+  const norm = Math.sqrt((2 * l + 1) / (4 * Math.PI) * FACT[l - absm] / FACT[l + absm]);
+  const p = plm(l, absm, Math.cos(theta));
+  const sign = (m < 0 && (absm % 2 === 1)) ? -1 : 1;
+  const arg = m * phi;
+  return { re: sign * norm * p * Math.cos(arg),
+           im: sign * norm * p * Math.sin(arg) };
+}
+
+// ───────────────── Hydrogen radial ─────────────────
+// R_{nl}(r) with r in units of a₀, ∫₀^∞ |R|² r² dr = 1.
+// R_nl(ρ) = √( (2/n)³ (n-l-1)! / (2n (n+l)!) ) · (2ρ/n)^l · L_{n-l-1}^{2l+1}(2ρ/n) · exp(-ρ/n)
+function R_hyd(n, l, rho) {
+  const a = 2 / n;
+  const lagN = n - l - 1;
+  const norm = Math.sqrt(a * a * a * FACT[lagN] / (2 * n * FACT[n + l]));
+  const u = a * rho;
+  return norm * Math.pow(u, l) * laguerre(lagN, 2 * l + 1, u) * Math.exp(-0.5 * u);
+}
+
+// Full ψ for a 2D-slice point (Cartesian coords in a₀).
+function psiH(n, l, m, x, y, z) {
+  const r = Math.sqrt(x * x + y * y + z * z);
+  if (r < 1e-12) {
+    if (l === 0) {
+      const R = R_hyd(n, 0, 0);
+      const Y = Ylm(0, 0, 0, 0);
+      return { re: R * Y.re, im: R * Y.im };
+    }
+    return { re: 0, im: 0 };
+  }
+  const theta = Math.acos(Math.max(-1, Math.min(1, z / r)));
+  const phi   = Math.atan2(y, x);
+  const R = R_hyd(n, l, r);
+  const Y = Ylm(l, m, theta, phi);
+  return { re: R * Y.re, im: R * Y.im };
+}
+
+// ───────────────── Orbital metadata ─────────────────
+function orbitalName(n, l) { return `${n}${ORBITAL_LETTERS[l]}`; }
+function E_n(n) { return -E_RY / (n * n); }
+// ⟨r⟩_{nl} = a₀/2 · [3n² − ℓ(ℓ+1)]   (in units of a₀)
+function meanR(n, l) { return 0.5 * (3 * n * n - l * (l + 1)); }
+function radialNodes(n, l) { return n - l - 1; }
+function angularNodes(l)   { return l; }
+
+// ───────────────── Spectrum panel layout ─────────────────
+
+function linspace(a, b, n) {
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) out[i] = a + (b - a) * i / (n - 1);
+  return out;
+}
+
+// Spectrum-axis layout: uniform per-n spacing (not energy-faithful, but readable
+// with n up to 4). True energy values still appear as labels on the axis ticks,
+// and a separate "0 eV continuum" reference line is drawn at the top.
+const SPEC_TOP_PAD  = 70;   // space above n = N_MAX cards (room for continuum tick)
+const SPEC_BOT_PAD  = 50;   // half-card + tick clearance below n = 1
+const CONTINUUM_Y   = 16;   // y-pixel of the "0 eV" dashed line
+
+function yPosForN(n, containerHeight) {
+  const usable = containerHeight - SPEC_TOP_PAD - SPEC_BOT_PAD;
+  // n = N_MAX at top, n = 1 at bottom
+  const frac = (N_MAX - n) / (N_MAX - 1);
+  return SPEC_TOP_PAD + frac * usable;
+}
+
+// Sparkline of r²|R_nl|² as inline SVG (fast, no Plotly overhead per card).
+function sparkPathFor(n, l) {
+  const rs = linspace(0, R_COMMON_MAX, SPARK_N);
+  const ys = new Array(SPARK_N);
+  let ymax = 0;
+  for (let i = 0; i < SPARK_N; i++) {
+    const R = R_hyd(n, l, rs[i]);
+    const v = rs[i] * rs[i] * R * R;
+    ys[i] = v;
+    if (v > ymax) ymax = v;
+  }
+  // Map to SVG viewBox 100 × 40 with small padding.
+  const pad = 2;
+  const W = 100, H = 40;
+  const sx = (W - 2 * pad) / (R_COMMON_MAX);
+  const sy = (H - 2 * pad) / (ymax > 0 ? ymax : 1);
+  let d = '';
+  for (let i = 0; i < SPARK_N; i++) {
+    const x = pad + rs[i] * sx;
+    const y = H - pad - ys[i] * sy;
+    d += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2) + ' ';
+  }
+  // Bottom baseline for the filled area
+  const fill = d + ` L${W - pad},${H - pad} L${pad},${H - pad} Z`;
+  return { line: d, fill, ymax };
+}
+
+function buildSparkSvg(n, l) {
+  const { line, fill } = sparkPathFor(n, l);
+  return `<svg viewBox="0 0 100 40" preserveAspectRatio="none">
+    <path d="${fill}" fill="#dbe4ff" stroke="none"/>
+    <path d="${line}" fill="none" stroke="#4361ee" stroke-width="1.2"/>
+  </svg>`;
+}
+
+function buildSpectrum() {
+  const plane = document.getElementById('spectrum-plane');
+  const axis  = document.getElementById('spectrum-axis');
+  const containerH = document.getElementById('spectrum').clientHeight;
+  plane.innerHTML = '';
+  axis.innerHTML  = '';
+
+  // Axis ticks: true energy values at each n's row, plus a "0 eV (n→∞)" mark at top.
+  const ticks = [];
+  for (let n = 1; n <= N_MAX; n++) {
+    ticks.push({ y: yPosForN(n, containerH),
+                 label: `${E_n(n).toFixed(2)} eV  (n=${n})` });
+  }
+  ticks.push({ y: CONTINUUM_Y, label: '0 eV  (n→∞)' });
+  for (const t of ticks) {
+    const div = document.createElement('div');
+    div.className = 'axis-tick';
+    div.style.top = `${t.y}px`;
+    div.textContent = t.label;
+    axis.appendChild(div);
+  }
+  // Dashed "continuum" reference line spanning the cards area.
+  const cont = document.createElement('div');
+  cont.className = 'energy-line continuum';
+  cont.style.top = `${CONTINUUM_Y}px`;
+  cont.style.width = '100%';
+  plane.appendChild(cont);
+
+  const vlabel = document.createElement('div');
+  vlabel.className = 'axis-label-vert';
+  vlabel.textContent = 'energy';
+  axis.appendChild(vlabel);
+
+  // Width of the cards area
+  const planeW = plane.clientWidth;
+  // Per row, distribute n cards horizontally so the same ℓ columns roughly line up.
+  // Columns: ℓ = 0, 1, 2, … up to N_MAX-1. Column centers at xCol(ℓ).
+  const cardW = 96;
+  const colGap = 14;
+  const totalCols = N_MAX;                                    // ℓ from 0 to N_MAX-1
+  const rowW = totalCols * cardW + (totalCols - 1) * colGap;
+  const xStart = Math.max(8, (planeW - rowW) / 2);
+  const xCol = (l) => xStart + l * (cardW + colGap) + cardW / 2;
+
+  for (let n = 1; n <= N_MAX; n++) {
+    const y = yPosForN(n, containerH);
+
+    // Horizontal energy line under cards (visual aid for degeneracy)
+    const line = document.createElement('div');
+    line.className = 'energy-line';
+    line.style.top = `${y}px`;
+    line.style.width = '100%';
+    plane.appendChild(line);
+
+    for (let l = 0; l < n; l++) {
+      const card = document.createElement('div');
+      card.className = 'orbital-card';
+      card.dataset.n = n; card.dataset.l = l;
+      card.style.left = `${xCol(l) - cardW / 2}px`;
+      card.style.top  = `${y}px`;
+      card.innerHTML = `
+        <div class="name">${orbitalName(n, l)}</div>
+        <div class="spark">${buildSparkSvg(n, l)}</div>`;
+      card.title = `${orbitalName(n, l)}  ·  E = ${E_n(n).toFixed(2)} eV  ·  `
+                 + `radial nodes: ${radialNodes(n, l)}, angular nodes: ${angularNodes(l)}`;
+      card.addEventListener('click', () => selectOrbital(n, l));
+      plane.appendChild(card);
+    }
+  }
+  highlightSelection();
+}
+
+function highlightSelection() {
+  document.querySelectorAll('.orbital-card').forEach(c => {
+    c.classList.toggle('selected',
+      +c.dataset.n === S.n && +c.dataset.l === S.l);
+  });
+}
+
+// ───────────────── Side panel ─────────────────
+
+function selectOrbital(n, l) {
+  S.n = n; S.l = l;
+  if (Math.abs(S.m) > l) S.m = 0;
+  redraw();
+}
+
+function updateSideHeader() {
+  document.getElementById('side-label').textContent =
+    `${orbitalName(S.n, S.l)}   (n, ℓ, m) = (${S.n}, ${S.l}, ${S.m})`;
+  document.getElementById('side-meta').innerHTML =
+    `E<sub>${S.n}</sub> = ${E_n(S.n).toFixed(3)} eV` +
+    `  ·  ⟨r⟩ = ${meanR(S.n, S.l).toFixed(2)} a₀` +
+    `  ·  radial nodes: ${radialNodes(S.n, S.l)}` +
+    `  ·  angular nodes: ${angularNodes(S.l)}` +
+    `  ·  total: ${S.n - 1}`;
+}
+
+function findRadialNodes(n, l) {
+  // Sample R on a fine grid, look for sign changes in the interior (r > 0).
+  const N = 800;
+  const rs = linspace(0.001, Math.max(R_COMMON_MAX, 4 * n * n), N);
+  const nodes = [];
+  let prev = R_hyd(n, l, rs[0]);
+  for (let i = 1; i < N; i++) {
+    const v = R_hyd(n, l, rs[i]);
+    if (prev !== 0 && v * prev < 0) {
+      // linear interp for crossing
+      const r0 = rs[i - 1] - prev * (rs[i] - rs[i - 1]) / (v - prev);
+      nodes.push(r0);
+    }
+    prev = v;
+  }
+  return nodes;
+}
+
+// Axis extent depends only on n (uniform across ℓ within a shell), so that
+// switching between e.g. 3s / 3p / 3d doesn't rescale the radial and slice plots.
+// Empirically ~2.5 n² a₀ is enough to comfortably hold any orbital in shell n
+// (the ℓ = 0 orbital has the largest mean radius and longest tail).
+function rMaxForN(n) {
+  return Math.max(8, 2.5 * n * n);
+}
+
+// Colorbar scale cache: a percentile cap on |ψ|² pooled across all (ℓ, |m|)
+// in the shell, on the xz slice. Recomputed only when the selected n changes.
+// We deliberately use a percentile (not the absolute max) because the s-orbital
+// has a sharp central spike that, if used as the colorbar max, washes out the
+// bulk shell structure of every orbital. The spike covers only a handful of
+// pixels, so cutting the top few % clips it to the saturated color while leaving
+// the rest of the structure visible across all orbitals in the shell.
+const SHELL_PERCENTILE = 0.999;
+const shellCache = { n: -1, psi2Max: 1, psiAbsMax: 1 };
+
+function refreshShellCache(n) {
+  if (shellCache.n === n) return;
+  const Rmax = rMaxForN(n);
+  const xs = linspace(-Rmax, Rmax, G_SLICE);
+  const ys = linspace(-Rmax, Rmax, G_SLICE);
+  // |ψ|² depends on |m| (through |P_l^{|m|}|²) but not the sign of m, so scan
+  // |m| ∈ [0, ℓ] only. n=4 → 1+2+3+4 = 10 (ℓ, |m|) cases.
+  const numLM = (n * (n + 1)) / 2;
+  const G2 = G_SLICE * G_SLICE;
+  const pool = new Float64Array(numLM * G2);
+  let idx = 0;
+  for (let l = 0; l < n; l++) {
+    for (let absm = 0; absm <= l; absm++) {
+      for (let j = 0; j < G_SLICE; j++) {
+        for (let i = 0; i < G_SLICE; i++) {
+          const psi = psiH(n, l, absm, xs[i], 0, ys[j]);
+          pool[idx++] = psi.re * psi.re + psi.im * psi.im;
+        }
+      }
+    }
+  }
+  pool.sort();   // Float64Array.sort is numeric by default
+  const cap = pool[Math.floor(SHELL_PERCENTILE * (pool.length - 1))];
+  shellCache.n = n;
+  shellCache.psi2Max = cap > 0 ? cap : 1;
+  shellCache.psiAbsMax = Math.sqrt(shellCache.psi2Max);
+}
+
+function drawRadial() {
+  const Rmax = rMaxForN(S.n);
+  const rs = linspace(0, Rmax, G_RAD_BIG);
+  const Rvals = new Array(G_RAD_BIG);
+  const rPv   = new Array(G_RAD_BIG);
+  for (let i = 0; i < G_RAD_BIG; i++) {
+    const r = rs[i];
+    const R = R_hyd(S.n, S.l, r);
+    Rvals[i] = R;
+    rPv[i]   = r * r * R * R;
+  }
+  const nodes = findRadialNodes(S.n, S.l).filter(r => r <= Rmax);
+  const traces = [
+    { x: Array.from(rs), y: Rvals, type: 'scatter', mode: 'lines',
+      name: 'R_{n,ℓ}(r)', yaxis: 'y',
+      line: { color: '#4361ee', width: 2 } },
+    { x: Array.from(rs), y: rPv,   type: 'scatter', mode: 'lines',
+      name: 'r² |R|² (radial prob. density)', yaxis: 'y2',
+      line: { color: '#e63946', width: 2 } },
+  ];
+  if (nodes.length > 0) {
+    traces.push({
+      x: nodes, y: nodes.map(() => 0), type: 'scatter', mode: 'markers',
+      name: `radial nodes (${nodes.length})`, yaxis: 'y',
+      marker: { color: '#1a1a2e', size: 7, symbol: 'x', line: { width: 1.5 } },
+    });
+  }
+  const layout = {
+    title: { text: `${orbitalName(S.n, S.l)}: R<sub>n,ℓ</sub>(r) and r²|R|²`,
+             font: { size: 12 }, x: 0.5 },
+    xaxis: { title: 'r (a₀)', fixedrange: true, ...GRID },
+    yaxis: { title: 'R(r)', fixedrange: true, zeroline: true,
+             zerolinecolor: '#bbb', ...GRID },
+    yaxis2: { title: 'r²|R|²', overlaying: 'y', side: 'right',
+              fixedrange: true, showgrid: false },
+    margin: { l: 46, r: 46, t: 30, b: 38 },
+    height: 220,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+    legend: { x: 0.99, xanchor: 'right', y: 0.99, font: { size: 9 },
+              bgcolor: 'rgba(255,255,255,0.85)' },
+  };
+  Plotly.react('plot-radial', traces, layout, CFG);
+}
+
+function drawSlice() {
+  refreshShellCache(S.n);
+  const Rmax = rMaxForN(S.n);
+  const xs = linspace(-Rmax, Rmax, G_SLICE);
+  const ys = linspace(-Rmax, Rmax, G_SLICE);
+  const z = new Array(G_SLICE);
+  let zabsmax = 0;
+  for (let j = 0; j < G_SLICE; j++) {
+    const row = new Float64Array(G_SLICE);
+    for (let i = 0; i < G_SLICE; i++) {
+      // xz plane: y = 0
+      const psi = psiH(S.n, S.l, S.m, xs[i], 0, ys[j]);
+      let v;
+      if (S.disp === 'psi2') {
+        v = psi.re * psi.re + psi.im * psi.im;
+      } else {
+        v = (S.part === 'im') ? psi.im : psi.re;
+      }
+      row[i] = v;
+      const av = Math.abs(v);
+      if (av > zabsmax) zabsmax = av;
+    }
+    z[j] = Array.from(row);
+  }
+  const ZERO = 1e-14;
+  const isZero = zabsmax < ZERO;
+  const signed = (S.disp === 'psi');
+  // Use shell-wide scale so all orbitals in shell n share a colorbar.
+  // Fall back to a unit scale if the slice vanishes identically.
+  const safeMax = isZero ? 1
+                : signed ? shellCache.psiAbsMax
+                         : shellCache.psi2Max;
+  const trace = signed ? {
+    type: 'heatmap', x: Array.from(xs), y: Array.from(ys), z,
+    colorscale: 'RdBu', reversescale: true,
+    zmin: -safeMax, zmax: safeMax,
+    colorbar: { thickness: 8, len: 0.85, tickfont: { size: 8 } },
+  } : {
+    type: 'heatmap', x: Array.from(xs), y: Array.from(ys), z,
+    colorscale: 'Viridis', zmin: 0, zmax: safeMax,
+    colorbar: { thickness: 8, len: 0.85, tickfont: { size: 8 } },
+  };
+  let what;
+  if (S.disp === 'psi2') what = '|ψ|²';
+  else if (S.m !== 0)    what = `${S.part === 'im' ? 'Im' : 'Re'}[ψ]`;
+  else                   what = 'ψ';
+  const suffix = isZero ? '  ·  vanishes in this slice' : '';
+  const layout = {
+    title: { text: `${what} in xz plane — ${orbitalName(S.n, S.l)}, m = ${S.m}${suffix}`,
+             font: { size: 11 }, x: 0.5 },
+    xaxis: { title: 'x (a₀)', fixedrange: true, ...GRID },
+    yaxis: { title: 'z (a₀)', scaleanchor: 'x', scaleratio: 1,
+             fixedrange: true, ...GRID },
+    margin: { l: 46, r: 10, t: 28, b: 36 },
+    height: 280,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+  };
+  Plotly.react('plot-slice', [trace], layout, CFG);
+}
+
+function drawYlm() {
+  const phis = linspace(0, 2 * Math.PI, G_ANG_PHI);
+  const ths  = linspace(0, Math.PI, G_ANG_TH);
+  const z = new Array(G_ANG_TH);
+  let zabsmax = 0;
+  for (let j = 0; j < G_ANG_TH; j++) {
+    const row = new Float64Array(G_ANG_PHI);
+    for (let i = 0; i < G_ANG_PHI; i++) {
+      const y = Ylm(S.l, S.m, ths[j], phis[i]);
+      row[i] = y.re;
+      const av = Math.abs(y.re);
+      if (av > zabsmax) zabsmax = av;
+    }
+    z[j] = Array.from(row);
+  }
+  const safeMax = zabsmax > 1e-12 ? zabsmax : 1;
+  const trace = {
+    type: 'heatmap', x: Array.from(phis), y: Array.from(ths), z,
+    colorscale: 'RdBu', reversescale: true,
+    zmin: -safeMax, zmax: safeMax,
+    colorbar: { thickness: 8, len: 0.85, tickfont: { size: 8 } },
+  };
+  const subtitle = (S.m === 0)
+    ? '(m = 0: φ-independent)'
+    : `(cos(${S.m}φ) gives ${2 * Math.abs(S.m)} azimuthal lobes)`;
+  const layout = {
+    title: { text: `Re[Y<sub>${S.l},${S.m}</sub>(θ,φ)]  ${subtitle}`,
+             font: { size: 11 }, x: 0.5 },
+    xaxis: { title: 'φ', range: [0, 2 * Math.PI], fixedrange: true,
+             tickvals: [0, Math.PI, 2 * Math.PI], ticktext: ['0', 'π', '2π'], ...GRID },
+    yaxis: { title: 'θ', range: [0, Math.PI], fixedrange: true,
+             tickvals: [0, Math.PI / 2, Math.PI], ticktext: ['0', 'π/2', 'π'], ...GRID },
+    margin: { l: 42, r: 10, t: 28, b: 34 },
+    height: 200,
+    paper_bgcolor: 'white', plot_bgcolor: '#fafafa',
+  };
+  Plotly.react('plot-ylm', [trace], layout, CFG);
+}
+
+// ───────────────── m stepper & display controls ─────────────────
+
+function syncMStepper() {
+  document.querySelector('#st-m .val').textContent = S.m;
+  const buttons = document.querySelectorAll('#st-m button');
+  buttons[0].disabled = (S.m <= -S.l);
+  buttons[1].disabled = (S.m >=  S.l);
+  // If ℓ=0, the stepper is effectively locked.
+  // Re/Im selector visibility
+  const showPart = (S.m !== 0 && S.disp === 'psi');
+  document.getElementById('seg-part').style.display = showPart ? '' : 'none';
+}
+
+function wireSideControls() {
+  document.querySelectorAll('#st-m button').forEach(b => {
+    b.addEventListener('click', () => {
+      const d = parseInt(b.dataset.d, 10);
+      const nm = S.m + d;
+      if (nm < -S.l || nm > S.l) return;
+      S.m = nm;
+      redraw();
+    });
+  });
+  document.querySelectorAll('#seg-disp button').forEach(b => {
+    b.addEventListener('click', () => {
+      S.disp = b.dataset.v;
+      document.querySelectorAll('#seg-disp button').forEach(x =>
+        x.classList.toggle('active', x.dataset.v === S.disp));
+      redraw();
+    });
+  });
+  document.querySelectorAll('#seg-part button').forEach(b => {
+    b.addEventListener('click', () => {
+      S.part = b.dataset.v;
+      document.querySelectorAll('#seg-part button').forEach(x =>
+        x.classList.toggle('active', x.dataset.v === S.part));
+      redraw();
+    });
+  });
+}
+
+// ───────────────── Boot ─────────────────
+
+function redraw() {
+  // Clamp m to [-ℓ, ℓ]
+  if (S.m >  S.l) S.m =  S.l;
+  if (S.m < -S.l) S.m = -S.l;
+  syncMStepper();
+  updateSideHeader();
+  drawRadial();
+  drawSlice();
+  drawYlm();
+  highlightSelection();
+}
+
+window.addEventListener('load', () => {
+  buildSpectrum();
+  wireSideControls();
+  redraw();
+});
+
+// Re-layout cards on resize (since plane width affects horizontal positions)
+window.addEventListener('resize', () => {
+  buildSpectrum();
+});
+</script>
+</body>
+</html>
